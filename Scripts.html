@@ -1,0 +1,504 @@
+<script>
+  let cacheClientes = [];
+  let cacheTareas = [];
+  let relacionadosSeleccionados = [];
+  let usuarioLogueado = ""; // Variable para almacenar el usuario que inició sesión
+
+  window.onload = () => {
+    // Al cargar, no mostramos nada hasta que se loguee (se maneja en el HTML)
+  };
+
+  // --- LÓGICA DE LOGIN ---
+  function ejecutarLogin() {
+    const u = document.getElementById('user').value;
+    const p = document.getElementById('pass').value;
+    
+    if(!u || !p) {
+      mostrarMensajeExito("Por favor, complete todos los campos");
+      return;
+    }
+
+    google.script.run.withSuccessHandler(r => {
+      if(r.exito) {
+        usuarioLogueado = r.usuario;
+        document.getElementById('pantalla-login').style.display = 'none';
+        document.getElementById('contenedor-app').style.display = 'block';
+        
+        // --- CARGAR RESPONSABLES AL INICIAR SESIÓN ---
+        google.script.run.withSuccessHandler(responsables => {
+          const ids = ['tarea-responsable', 'filtro-responsable'];
+          ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+              // Limpiamos opciones previas excepto la primera
+              el.options.length = 1; 
+              responsables.forEach(res => {
+                let opt = document.createElement('option');
+                opt.value = res;
+                opt.text = res;
+                el.add(opt);
+              });
+            }
+          });
+        }).obtenerResponsables();
+        // ---------------------------------------------
+
+        // CORRECCIÓN: Inicia en la sección 'consulta' usando el primer botón del menú [0]
+        const primerBoton = document.querySelectorAll('.nav-item')[0];
+        mostrarSeccion('consulta', primerBoton);
+        mostrarMensajeExito("Bienvenido " + u);
+      } else {
+        mostrarMensajeExito(r.mensaje);
+      }
+    }).validarLogin(u, p);
+  }
+
+  function mostrarSeccion(id, elemento) {
+    document.querySelectorAll('.modulo').forEach(m => m.style.display = 'none');
+    document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(id).style.display = 'block';
+    if(elemento) elemento.classList.add('active');
+    
+    actualizarListaClientesGlobal();
+    if(id === 'consulta' || id === 'historial-cliente') {
+      uiConsultarTareas();
+    }
+  }
+
+  function actualizarListaClientesGlobal() {
+    google.script.run.withSuccessHandler(cs => {
+      cacheClientes = cs;
+      filtrarSelectClientes(""); 
+      filtrarSelectHistorial(""); 
+      filtrarSelectTarea("");
+      
+      const sVinc = document.getElementById('lista-clientes-vincular');
+      if(sVinc){
+        sVinc.innerHTML = '<option value="">-- Buscar para vincular --</option>';
+        cs.forEach(c => {
+          let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; sVinc.add(o);
+        });
+      }
+    }).obtenerListaClientes();
+  }
+
+  function uiConsultarTareas() {
+    google.script.run.withSuccessHandler(t => {
+      cacheTareas = t;
+      renderTabla(t, 'cuerpo-tabla');
+      const idCli = document.getElementById('select-cliente-historial').value;
+      if(idCli) uiFiltrarTareasPorCliente(idCli);
+    }).obtenerTareas();
+  }
+
+  function renderTabla(lista, idCuerpo) {
+    const tbody = document.getElementById(idCuerpo);
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (lista.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--secondary);">No se encontraron tareas</td></tr>`;
+      return;
+    }
+
+    // Ordenamos por vencimiento (las más viejas o vencidas primero)
+    const copia = [...lista].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
+
+    copia.forEach(t => {
+      const tr = document.createElement('tr');
+      
+      // Determinamos clase de prioridad/estado para el estilo
+      let claseFila = '';
+      if (t.estado === 'Terminado') claseFila = 'terminado';
+      else if (t.prioridad === 'Urgente') claseFila = 'urgente';
+      else claseFila = 'normal';
+
+      const jsonStr = encodeURIComponent(JSON.stringify(t));
+
+      // Formateamos fechas de YYYY-MM-DD a DD/MM/YYYY para visualización
+      const fCreacion = t.creacion ? t.creacion.split('-').reverse().join('/') : '';
+      const fVencim = t.vencimiento ? t.vencimiento.split('-').reverse().join('/') : '';
+
+      tr.innerHTML = `
+        <td>
+          <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
+        </td>
+        <td>${fCreacion}</td>
+        <td class="${claseFila}" style="font-weight:600;">${fVencim}</td>
+        <td><span class="badge ${t.prioridad === 'Urgente' ? 'badge-urgente' : 'badge-normal'}">${t.prioridad}</span></td>
+        <td>
+          <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${t.idCliente}'); return false;">
+            ${t.clienteNombre}
+          </a>
+        </td>
+        <td>${t.compania || ''}</td>
+        <td>${t.tipoTarea || ''}</td> <td><span class="texto-descripcion" title="${t.descripcion || ''}">${t.descripcion || ''}</span></td>
+        <td><span class="badge-estado ${t.estado === 'Terminado' ? 'est-terminado' : (t.estado === 'En proceso' ? 'est-proceso' : 'est-sinleer')}">${t.estado}</span></td>
+        <td>${t.urlAdjunto ? `<a href="${t.urlAdjunto}" target="_blank" class="btn-adjunto-tabla" title="Ver documento">📎 Archivo</a>` : '<span style="color:#ccc;">-</span>'}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // --- FILTROS ---
+  function filtrarUrgentes() {
+    const filtradas = cacheTareas.filter(t => t.prioridad === 'Urgente' && t.estado !== 'Terminado');
+    renderTabla(filtradas, 'cuerpo-tabla');
+  }
+
+  function filtrarVencidas() {
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+    const filtradas = cacheTareas.filter(t => {
+      if(!t.vencimiento || t.estado === 'Terminado') return false;
+      const fVenc = new Date(t.vencimiento + "T00:00:00");
+      return fVenc < hoy;
+    });
+    renderTabla(filtradas, 'cuerpo-tabla');
+  }
+
+  function filtrarProximas(dias) {
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+    const limite = new Date();
+    limite.setDate(hoy.getDate() + dias);
+    limite.setHours(23,59,59,999);
+
+    const filtradas = cacheTareas.filter(t => {
+      if(!t.vencimiento || t.estado === 'Terminado') return false;
+      const fVenc = new Date(t.vencimiento + "T00:00:00");
+      return fVenc >= hoy && fVenc <= limite;
+    });
+    renderTabla(filtradas, 'cuerpo-tabla');
+  }
+
+  function filtrarTablaGeneral() {
+    const v = document.getElementById('buscador-tarea').value.toLowerCase();
+    const filtradas = cacheTareas.filter(t => 
+      t.clienteNombre.toLowerCase().includes(v) || 
+      (t.descripcion && t.descripcion.toLowerCase().includes(v)) ||
+      (t.tipoTarea && t.tipoTarea.toLowerCase().includes(v)) ||
+      t.compania.toLowerCase().includes(v)
+    );
+    renderTabla(filtradas, 'cuerpo-tabla');
+  }
+
+  function uiFiltrarTareasPorCliente(id) {
+    if(!id) { document.getElementById('tabla-historial-cli').style.display = 'none'; return; }
+    const filtradas = cacheTareas.filter(t => t.idCliente == id);
+    document.getElementById('tabla-historial-cli').style.display = 'table';
+    renderTabla(filtradas, 'cuerpo-tabla-cliente');
+    document.getElementById('select-cliente-historial').size = 1;
+  }
+
+  // --- GUARDAR CLIENTE ---
+  function cargarDatosClienteEdicion(idCliente) {
+  if (!idCliente) {
+    limpiarFormCliente();
+    return;
+  }
+
+  // Buscar los datos del cliente en tu caché existente (asumiendo que usas cacheClientes)
+  const cliente = cacheClientes.find(c => c.id == idCliente);
+  if (!cliente) return;
+
+  // 1. Rellenar los campos del formulario
+  document.getElementById('cliente-id').value = cliente.id;
+  document.getElementById('nombre').value = cliente.nombre || "";
+  document.getElementById('dni').value = cliente.dni || "";
+  document.getElementById('domicilio').value = cliente.domicilio || "";
+  document.getElementById('telefono').value = cliente.telefono || "";
+  document.getElementById('email').value = cliente.email || "";
+  document.getElementById('rivadavia').value = cliente.rivadavia || "";
+  document.getElementById('provincia').value = cliente.provincia || "";
+  document.getElementById('fedPatronal').value = cliente.fedPatronal || "";
+  document.getElementById('cliente-observaciones').value = cliente.observaciones || "";
+
+  // Cambiar el título a Modo Consulta
+  document.getElementById('titulo-cliente').innerText = "Consulta de Cliente: " + cliente.nombre.toUpperCase();
+
+  // 2. Bloquear todos los inputs para consulta estricta
+  alternarEstadoCamposCliente(true);
+
+  // 3. Controlar visibilidad de botones
+  document.getElementById('btn-editar-cliente').style.display = 'inline-block';
+  document.getElementById('btn-guardar-cliente').style.display = 'none';
+
+  // 4. Cargar y mostrar la tabla de tareas asociadas abajo
+  // Filtramos de tu cacheTareas global los registros de este cliente
+  const tareasAsociadas = cacheTareas.filter(t => t.idCliente == idCliente);
+  
+  // Usamos tu función renderTabla original pero apuntando al nuevo cuerpo de tabla
+  renderTabla(tareasAsociadas, 'cuerpo-tabla-cliente-directo');
+  document.getElementById('modulo-tareas-asociadas').style.display = 'block';
+  
+  // Procesar relaciones si las tenés implementadas
+  if (typeof dibujarRelacionados === "function") {
+    dibujarRelacionados(cliente.relaciones || []);
+  }
+}
+  function uiGuardarCliente() {
+    const nombre = document.getElementById('nombre').value.toUpperCase().trim();
+    if (!nombre) {
+      mostrarMensajeExito("El nombre del cliente es obligatorio");
+      return;
+    }
+
+    const d = {
+      id: document.getElementById('cliente-id').value,
+      nombre: nombre,
+      dni: document.getElementById('dni').value.trim(), 
+      domicilio: document.getElementById('domicilio').value.trim(),
+      telefono: document.getElementById('telefono').value.trim(),
+      email: document.getElementById('email').value.trim(),
+      rivadavia: document.getElementById('rivadavia').value.trim(),
+      provincia: document.getElementById('provincia').value.trim(),
+      fedPatronal: document.getElementById('fedPatronal').value.trim(),
+      relacionados: relacionadosSeleccionados,
+      observaciones: document.getElementById('cliente-observaciones').value.trim()
+    };
+
+    google.script.run.withSuccessHandler(r => {
+      mostrarMensajeExito("Cliente guardado con éxito");
+      limpiarFormCliente();
+      actualizarListaClientesGlobal(); 
+    }).guardarCliente(d);
+  }
+    
+  // --- GUARDAR TAREA (CON USUARIO) ---
+  function uiGuardarTarea() {
+    let idCli = document.getElementById('select-cliente').value;
+    
+    if (!idCli || idCli === "") {
+      const contenedorBloqueado = document.getElementById('cliente-bloqueado');
+      if (contenedorBloqueado.style.display === 'block') {
+        const nombreFijo = document.getElementById('nombre-cliente-fijo').value;
+        const clienteEncontrado = cacheClientes.find(c => c.nombre === nombreFijo);
+        if (clienteEncontrado) idCli = clienteEncontrado.id;
+      }
+    }
+
+    if(!idCli || idCli === "") {
+      mostrarMensajeExito("Error: No se pudo identificar al cliente");
+      return;
+    }
+
+    const btn = document.getElementById('btn-guardar-tarea');
+    const file = document.getElementById('tarea-adjunto').files[0];
+    btn.disabled = true; 
+    btn.innerText = "Procesando...";
+
+    const enviar = (url) => {
+      const t = {
+        id_fila: document.getElementById('tarea-id-fila').value,
+        idCliente: idCli,
+        tipoTarea: document.getElementById('tarea-tipo').value,
+        compania: document.getElementById('tarea-compania').value,
+        estado: document.getElementById('tarea-estado').value,
+        prioridad: document.getElementById('tarea-prioridad').value,
+        vencimiento: document.getElementById('tarea-vencimiento').value,
+        responsable: document.getElementById('tarea-responsable').value,
+        descripcion: document.getElementById('tarea-desc').value,
+        adjunto: url || ""
+      };
+
+      google.script.run.withSuccessHandler(r => {
+        mostrarMensajeExito("Tarea guardada con éxito");
+        limpiarFormTarea();
+        // CORRECCIÓN: Al guardar una tarea, busca el botón del historial que ahora tiene la función con el string 'consulta'
+        const btnConsulta = document.querySelector('button[onclick*="consulta"]');
+        mostrarSeccion('consulta', btnConsulta);
+      }).guardarTarea(t, usuarioLogueado); 
+    };
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = e => google.script.run.withSuccessHandler(url => enviar(url)).subirArchivoADrive(e.target.result, file.name);
+      reader.readAsDataURL(file);
+    } else {
+      enviar("");
+    }
+  }
+
+  function prepararEdicionTarea(json) {
+    const t = JSON.parse(decodeURIComponent(json));
+    // CORRECCIÓN: 'Nueva Tarea' ahora está en la posición [1] del menú
+    const btnTarea = document.querySelectorAll('.nav-item')[1];
+    mostrarSeccion('tareas', btnTarea);
+    document.getElementById('tarea-id-fila').value = t.id_fila;
+    document.getElementById('contenedor-seleccion-cliente').style.display = 'none';
+    document.getElementById('cliente-bloqueado').style.display = 'block';
+    document.getElementById('nombre-cliente-fijo').value = t.clienteNombre;
+    document.getElementById('select-cliente').value = t.idCliente;
+    document.getElementById('tarea-tipo').value = t.tipoTarea || "";
+    document.getElementById('tarea-compania').value = t.compania;
+    document.getElementById('tarea-estado').value = t.estado;
+    document.getElementById('tarea-prioridad').value = t.prioridad;
+    document.getElementById('tarea-responsable').value = t.responsable || "";
+    document.getElementById('tarea-vencimiento').type = 'date';
+    document.getElementById('tarea-vencimiento').value = t.vencimiento;
+    document.getElementById('tarea-desc').value = t.descripcion;
+    document.getElementById('nombre-cliente-tarea-cabecera').innerText = t.clienteNombre.toUpperCase();
+  }
+
+  // --- FILTROS DE SELECTS ---
+  function filtrarSelectClientes(v) {
+    const s = document.getElementById('buscar-cliente-select');
+    s.innerHTML = '<option value="">-- Seleccione un cliente --</option>';
+    cacheClientes.filter(c => c.nombre.toLowerCase().includes(v.toLowerCase())).forEach(c => {
+      let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; s.add(o);
+    });
+  }
+
+  function filtrarSelectHistorial(v) {
+    const s = document.getElementById('select-cliente-historial');
+    s.innerHTML = '<option value="">-- Seleccione un cliente --</option>';
+    const filtrados = cacheClientes.filter(c => c.nombre.toLowerCase().includes(v.toLowerCase()));
+    filtrados.forEach(c => {
+      let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; s.add(o);
+    });
+    s.size = v.length > 0 ? Math.min(filtrados.length + 1, 5) : 1;
+  }
+
+  // --- RELACIONADOS ---
+  function agregarRelacionado() {
+    const id = document.getElementById('lista-clientes-vincular').value;
+    const c = cacheClientes.find(x => x.id == id);
+    const r = document.getElementById('select-rol').value;
+    if(c && !relacionadosSeleccionados.find(x => x.id == id)) {
+      relacionadosSeleccionados.push({id: c.id, nombre: c.nombre, rol: r});
+      renderRelacionados();
+    }
+  }
+
+  function renderRelacionados() {
+    const cont = document.getElementById('contenedor-relacionados');
+    cont.innerHTML = '';
+    relacionadosSeleccionados.forEach((r, i) => {
+      cont.innerHTML += `<span style="background:#f1f5f9; padding:6px 12px; border-radius:4px; border:1px solid #cbd5e1; font-size:12px; color:#475569;">
+        👥 ${r.nombre} (${r.rol}) <b onclick="quitarRelacionado(${i})" style="cursor:pointer; color:var(--danger); margin-left:8px;">×</b></span>`;
+    });
+  }
+
+  function quitarRelacionado(i) { relacionadosSeleccionados.splice(i,1); renderRelacionados(); }
+
+  // --- LIMPIEZA ---
+  function limpiarFormCliente() {
+    document.getElementById('form-cliente').reset();
+    document.getElementById('cliente-id').value = "";
+    document.getElementById('cliente-observaciones').value = "";
+    relacionadosSeleccionados = [];
+    renderRelacionados();
+    document.getElementById('titulo-cliente').innerText = "Gestión de Clientes";
+  }
+
+  function limpiarFormTarea() {
+    document.getElementById('form-tarea').reset();
+    document.getElementById('tarea-id-fila').value = "";
+    document.getElementById('tarea-vencimiento').type = 'text';
+    document.getElementById('contenedor-seleccion-cliente').style.display = 'block';
+    document.getElementById('cliente-bloqueado').style.display = 'none';
+    document.getElementById('nombre-cliente-tarea-cabecera').innerText = "";
+    document.getElementById('btn-guardar-tarea').disabled = false;
+    document.getElementById('btn-guardar-tarea').innerText = "Guardar Tarea";
+  }
+
+  function actualizarNombreCabeceraTarea() {
+    const s = document.getElementById('select-cliente');
+    document.getElementById('nombre-cliente-tarea-cabecera').innerText = s.selectedIndex > 0 ? s.options[s.selectedIndex].text.toUpperCase() : "";
+  }
+
+  function filtrarPorEstado(estado) {
+    const filtradas = cacheTareas.filter(t => t.estado === estado);
+    renderTabla(filtradas, 'cuerpo-tabla');
+  }
+
+  // --- TOAST NOTIFICATION ---
+  function mostrarMensajeExito(texto) {
+    const toast = document.createElement('div');
+    toast.className = 'toast-notificacion';
+    toast.innerHTML = `<span>✓</span> ${texto}`;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.transition = "opacity 0.5s ease";
+      toast.style.opacity = "0";
+      setTimeout(() => toast.remove(), 500);
+    }, 3000);
+  }
+
+  function filtrarPorResponsable(nombre) {
+    if (!nombre || nombre === "") {
+      renderTabla(cacheTareas, 'cuerpo-tabla');
+      return;
+    }
+    const filtradas = cacheTareas.filter(t => t.responsable && t.responsable === nombre);
+    renderTabla(filtradas, 'cuerpo-tabla');
+  }
+
+  function viajarAlCliente(idCliente) {
+  if (!idCliente) return;
+
+  // CORRECCIÓN: 'Clientes' ahora es el cuarto botón del menú (índice [3])
+  const btnClientes = document.querySelectorAll('.nav-item')[3];
+  
+  mostrarSeccion('clientes', btnClientes);
+
+  const selectBuscador = document.getElementById('buscar-cliente-select');
+  if (selectBuscador) {
+    selectBuscador.value = idCliente;
+    cargarDatosClienteEdicion(idCliente);
+  }
+}
+// Función para habilitar la edición de los campos
+function habilitarEdicionCliente() {
+  const nombreCliente = document.getElementById('nombre').value;
+  document.getElementById('titulo-cliente').innerText = "Editando Cliente: " + nombreCliente.toUpperCase();
+  
+  // Desbloqueamos los campos
+  alternarEstadoCamposCliente(false);
+  
+  // Alternamos los botones correspondientes
+  document.getElementById('btn-editar-cliente').style.display = 'none';
+  document.getElementById('btn-guardar-cliente').style.display = 'inline-block';
+}
+
+// Función auxiliar para bloquear o desbloquear el formulario
+function alternarEstadoCamposCliente(bloquear) {
+  const campos = [
+    'nombre', 'dni', 'domicilio', 'telefono', 'email', 
+    'rivadavia', 'provincia', 'fedPatronal', 
+    'lista-clientes-vincular', 'select-rol', 'cliente-observaciones'
+  ];
+  
+  campos.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = bloquear;
+  });
+
+  const btnVincular = document.getElementById('btn-vincular-cliente');
+  if (btnVincular) btnVincular.disabled = bloquear;
+}
+
+// Modificación a tu función de limpiar para restablecer los estados por defecto
+function limpiarFormCliente() {
+  document.getElementById('form-cliente').reset();
+  document.getElementById('cliente-id').value = "";
+  document.getElementById('buscar-cliente-select').value = "";
+  document.getElementById('contenedor-relacionados').innerHTML = "";
+  
+  document.getElementById('titulo-cliente').innerText = "Gestión de Clientes";
+  
+  // Al ser un cliente nuevo, sí permitimos escribir desde el inicio
+  alternarEstadoCamposCliente(false);
+  
+  // Mostramos guardar y ocultamos editar
+  document.getElementById('btn-editar-cliente').style.display = 'none';
+  document.getElementById('btn-guardar-cliente').style.display = 'inline-block';
+  
+  // Ocultamos la tabla de tareas inferiores porque no hay cliente seleccionado
+  document.getElementById('modulo-tareas-asociadas').style.display = 'none';
+  document.getElementById('cuerpo-tabla-cliente-directo').innerHTML = "";
+}
+
+</script>

@@ -1,0 +1,354 @@
+<style>
+  :root {
+    --zoho-bg: #f4f7f9;
+    --zoho-nav: #1a293e;
+    --primary: #1e88e5;
+    --primary-dark: #1565c0;
+    --secondary: #616e7f;
+    --danger: #d32f2f;
+    --warning: #ef6c00;
+    --all-btn: #2e7d32;
+    --border: #d3dbe3;
+    --text-main: #44474a;
+  }
+
+  * { box-sizing: border-box; }
+
+  body { 
+    font-family: 'Inter', sans-serif; 
+    background: var(--zoho-bg); 
+    margin: 0; 
+    padding: 0; 
+    color: var(--text-main); 
+    font-size: 14px;
+  }
+
+  /* UNIFICACIÓN DE FUENTE Y TAMAÑO (Para que todo se vea igual) */
+  input, 
+  select, 
+  textarea, 
+  button,
+  .btn-filter {
+    font-family: 'Inter', sans-serif !important;
+    font-size: 14px !important;
+    font-weight: 400 !important; /* Peso normal para todos */
+    color: var(--text-main);
+  }
+
+  /* BARRA SUPERIOR FIJA */
+.top-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 70px;
+  background: var(--zoho-nav);
+  color: white;
+  display: flex;
+  align-items: center;
+  padding: 0 30px;
+  z-index: 1000;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  justify-content: space-between; /* Distribuye espacio entre logo y botones */
+}
+
+/* Añade esto para que el logo no desplace el centro */
+.logo {
+  min-width: 100px; /* Dale un ancho fijo al logo */
+}
+
+/* Espacio vacío invisible a la derecha para equilibrar el logo de la izquierda */
+.top-nav::after {
+  content: "";
+  min-width: 100px; 
+}
+
+  .logo {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-right: 40px;
+    color: #fff;
+  }
+
+  .nav-links {
+  display: flex;
+  gap: 5px;
+  height: 100%;
+  justify-content: center; /* Centra los botones horizontalmente */
+  flex: 1;                 /* Hace que el contenedor crezca para ocupar el centro */
+}
+
+  .nav-item {
+    height: 100%;
+    padding: 0 20px;
+    border: none;
+    background: transparent;
+    color: #aeb9c7;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s;
+    border-bottom: 3px solid transparent;
+  }
+
+  .nav-item:hover {
+    background: rgba(255,255,255,0.05);
+    color: #fff;
+  }
+
+  .nav-item.active {
+    color: #fff;
+    border-bottom: 3px solid var(--primary);
+  }
+
+  /* CONTENT AREA */
+  .main-container {
+    padding-top: 90px;
+  }
+
+  .content-area {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  .modulo {
+    display: none;
+    animation: fadeIn 0.4s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .header-modulo h2 {
+    font-size: 24px;
+    font-weight: 500;
+    margin-bottom: 25px;
+    color: #2c3e50;
+  }
+
+  /* FORMS */
+  .zoho-form {
+    background: white;
+    padding: 30px;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border: 1px solid var(--border);
+  }
+
+  .section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--primary);
+    margin: 25px 0 15px 0;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #eee;
+  }
+
+  .field-group { margin-bottom: 15px; }
+  
+  .field-group label {
+    display: block;
+    font-size: 14px;
+    color: var(--secondary);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+
+  input, select, textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+
+  input:focus, select:focus {
+    border-color: var(--primary);
+    outline: none;
+  }
+
+  .grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-form-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+  /* BOTONES DE FILTRADO */
+  .btn-filter {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .btn-filter:hover { opacity: 0.85; }
+
+  .btn-filter.vencida { background-color: var(--danger); color: #ffffff; }
+  .btn-filter.proxima { background-color: var(--warning); color: #ffffff; }
+  .btn-filter.urgente-btn { background-color: #000; color: #fff; border: 1px solid #fff; }
+  .btn-filter.todas { background-color: var(--all-btn); color: #ffffff; }
+
+  .terminado-btn {
+    background-color: #FFB300 !important; /* Amarillo huevo */
+    color: #000 !important;
+  }
+
+  /* TABLES */
+  .table-wrapper {
+    background: white;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    overflow-x: auto;
+    margin-top: 20px;
+  }
+
+  table { width: 100%; border-collapse: collapse; min-width: 900px;}
+  
+  th {
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: 0.5px;
+  }
+  
+  td { 
+    padding: 12px 15px; 
+    border-bottom: 1px solid #f1f5f9; 
+    font-size: 13px !important; 
+  }
+
+  /* BADGES Y ESTADOS */
+  .badge { padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; text-transform: uppercase;}
+  .urgente { background: #fee2e2; color: #991b1b; }
+  .normal { background: #e0f2fe; color: #075985; }
+  .terminado { background: #dcfce7; color: #166534; }
+
+  .form-actions {
+    margin-top: 30px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+  }
+
+  .btn-principal { background: var(--primary); color: white; border: none; padding: 10px 25px; border-radius: 3px; font-weight: 600 !important; cursor: pointer; }
+  .btn-secondary { background: white; color: var(--secondary); border: 1px solid var(--border); padding: 10px 25px; border-radius: 3px; cursor: pointer; }
+
+  /* NOTIFICACIÓN TOAST */
+  .toast-notificacion {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #2e7d32;
+    color: white;
+    padding: 12px 25px;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 3000;
+    animation: slideIn 0.3s ease-out;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  @media (max-width: 768px) {
+    .top-nav { height: auto; flex-direction: column; padding: 10px; }
+    .nav-links { width: 100%; justify-content: space-around; }
+    .logo { margin: 5px 0; }
+    .main-container { padding-top: 130px; }
+  }
+
+  /* Estilo para el hipervínculo del cliente en las tablas */
+.enlace-cliente-tabla {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.enlace-cliente-tabla:hover {
+  text-decoration: underline;
+  color: var(--primary-dark);
+}
+
+/* --- UNIFICACIÓN Y CORRECCIÓN DE TABLAS --- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Inter', sans-serif !important;
+}
+
+/* Forzamos a que tanto el encabezado como el cuerpo tengan exactamente el mismo tamaño base */
+th, td {
+  padding: 6px 10px !important; /* Reducimos el alto del renglón notablemente */
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-family: 'Inter', sans-serif !important;
+  font-size: 13px !important; /* Tamaño uniforme basado en la columna Cía */
+  line-height: 1.2 !important;
+  vertical-align: middle !important; /* Centra verticalmente todo el contenido */
+}
+
+th {
+  background-color: #f8fafc;
+  color: var(--secondary);
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  font-size: 11px !important; /* El encabezado un poco más compacto y formal */
+  letter-spacing: 0.5px;
+}
+
+/* Ajuste específico para la celda y el botón del lápiz */
+td:first-child {
+  text-align: center !important;
+  width: 40px;
+  padding: 4px 6px !important;
+}
+
+.btn-icon {
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  font-size: 14px !important; /* Tamaño ideal para que el emoji del lápiz no estire el renglón */
+  cursor: pointer;
+  line-height: 1 !important;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* El enlace del cliente también debe respetar el tamaño general */
+.enlace-cliente-tabla {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.enlace-cliente-tabla:hover {
+  text-decoration: underline;
+}
+
+/* Evitamos que las descripciones largas deformen el alto de la fila */
+.texto-descripcion {
+  font-size: 13px !important;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 250px; /* Ajustalo según prefieras */
+}
+</style>

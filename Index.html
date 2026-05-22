@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <?!= include('Styles'); ?>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    
+    <div id="pantalla-login" style="display:flex; justify-content:center; align-items:center; height:100vh; background:var(--zoho-nav);">
+      <form id="login-form" onsubmit="manejarEnvioLogin(event)" class="box-search" style="background:white; padding:40px; border-radius:8px; width:350px; margin:0;">
+        <h2 style="text-align:center; color:var(--zoho-nav); margin-bottom:20px;">Acceso CRM</h2>
+        
+        <input type="text" id="user" name="username" placeholder="Usuario" autocomplete="username" style="margin-bottom:15px; width:100%;" required>
+        
+        <input type="password" id="pass" name="password" placeholder="Contraseña" autocomplete="current-password" style="margin-bottom:15px; width:100%;" required>
+        
+        <button type="submit" class="btn-principal" style="width:100%;">ENTRAR</button>
+      </form>
+    </div>
+
+    <div id="contenedor-app" style="display:none;">
+      
+      <header class="top-nav">
+        <div class="logo"></div>
+        <nav class="nav-links">
+          <button onclick="mostrarSeccion('consulta', this)" class="nav-item active">Historial Tareas</button>
+          <button onclick="mostrarSeccion('tareas', this)" class="nav-item">Nueva Tarea</button>
+          <button onclick="mostrarSeccion('historial-cliente', this)" class="nav-item">Historial Cliente</button>
+          <button onclick="mostrarSeccion('clientes', this)" class="nav-item">Clientes</button>
+        </nav>
+      </header>
+
+      <div class="main-container">
+        <div class="content-area">
+          
+          <div id="consulta" class="modulo">
+            <div class="table-controls" style="flex-direction: column; align-items: flex-start;">
+              <input type="text" id="buscador-tarea" placeholder="Buscar Tareas..." onkeyup="filtrarTablaGeneral()" style="width: 100%;">
+              
+              <div class="filter-buttons" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                <button onclick="renderTabla(cacheTareas, 'cuerpo-tabla')" class="btn-filter todas">Todas</button>
+                <button onclick="filtrarVencidas()" class="btn-filter vencida">Vencidas</button>
+                <button onclick="filtrarProximas(3)" class="btn-filter proxima">Vencen en 3 días</button>
+                <button onclick="filtrarUrgentes()" class="btn-filter urgente-btn">Urgentes</button>
+                <button onclick="filtrarPorEstado('Sin leer')" class="btn-filter" style="background-color: var(--secondary); color: white;">Sin Leer</button>
+                <button onclick="filtrarPorEstado('En proceso')" class="btn-filter" style="background-color: var(--primary); color: white;">En Proceso</button>
+                <button onclick="filtrarPorEstado('Terminado')" class="btn-filter terminado-btn">Terminado</button>
+                
+                <select id="filtro-responsable" onchange="filtrarPorResponsable(this.value)" class="btn-filter" style="width:auto; background:white; color:black; border:1px solid #ccc;">
+                  <option value="">Responsable: Todos</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr><th></th><th>Creación</th><th>Vencim.</th><th>Prioridad</th><th>Cliente</th><th>Cía</th><th>Tarea</th><th>Descripción</th><th>Estado</th><th>Adj.</th></tr>
+                </thead>
+                <tbody id="cuerpo-tabla"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="clientes" class="modulo">
+            <div class="header-modulo">
+              <h2 id="titulo-cliente">Gestión de Clientes</h2>
+            </div>
+            
+            <div class="box-search">
+              <input type="text" placeholder="Buscar por nombre..." onkeyup="filtrarSelectClientes(this.value)">
+              <select id="buscar-cliente-select" onchange="cargarDatosClienteEdicion(this.value)" style="margin-top:10px;">
+                <option value="">-- Seleccione un cliente --</option>
+              </select>
+            </div>
+
+            <form id="form-cliente" class="zoho-form">
+              <input type="hidden" id="cliente-id">
+              
+              <div class="section-title">Información de Contacto</div>
+              <div class="grid-form">
+                <div class="field-group">
+                  <label>Nombre Completo</label>
+                  <input type="text" id="nombre" required disabled>
+                </div>
+                <div class="field-group">
+                  <label>CUIL/CUIT</label>
+                  <input type="text" id="dni" disabled>
+                </div>
+              </div>
+
+              <div class="grid-form">
+                <div class="field-group">
+                  <label>Domicilio</label>
+                  <input type="text" id="domicilio" disabled>
+                </div>
+                <div class="field-group">
+                  <label>Teléfono</label>
+                  <input type="text" id="telefono" disabled>
+                </div>
+              </div>
+
+              <div class="field-group" style="margin-bottom: 20px;">
+                <label>Email</label>
+                <input type="email" id="email" disabled>
+              </div>
+
+              <div class="section-title">Números de Cliente</div>
+              <div class="grid-form-3">
+                <div class="field-group">
+                  <label>Rivadavia</label>
+                  <input type="text" id="rivadavia" disabled>
+                </div>
+                <div class="field-group">
+                  <label>Provincia</label>
+                  <input type="text" id="provincia" disabled>
+                </div>
+                <div class="field-group">
+                  <label>Fed. Patronal</label>
+                  <input type="text" id="fedPatronal" disabled>
+                </div>
+              </div>
+              
+              <div style="display:flex; gap:10px; grid-column: span 2; align-items: flex-end;">
+                <div class="field-group" style="flex-grow:1; margin-bottom:0;">
+                  <label>Buscar Cliente</label>
+                  <select id="lista-clientes-vincular" disabled></select>
+                </div>
+                <div class="field-group" style="width:180px; margin-bottom:0;">
+                  <label>Vínculo</label>
+                  <select id="select-rol" disabled>
+                    <option value="Familiar">Familiar</option>
+                    <option value="Referencia">Referencia</option>
+                  </select>
+                </div>
+                <button type="button" id="btn-vincular-cliente" onclick="agregarRelacionado()" class="btn-principal" style="height: 38px; padding: 0 20px; display: flex; align-items: center; justify-content: center;" disabled>
+                  Agregar
+                </button>
+              </div>
+              <div id="contenedor-relacionados" style="margin-top:15px; display:flex; flex-wrap:wrap; gap:8px;"></div>
+
+              <div class="section-title">Observaciones</div>
+              <div class="field-group">
+                <label>Notas adicionales del cliente</label>
+                <textarea id="cliente-observaciones" rows="3" disabled></textarea>
+              </div>
+              
+              <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="limpiarFormCliente()">Nuevo / Limpiar</button>
+                <button type="button" id="btn-editar-cliente" class="btn-filter" style="background-color: var(--primary); color: white; display: none;" onclick="habilitarEdicionCliente()">Editar</button>
+                <button type="button" id="btn-guardar-cliente" class="btn-principal" onclick="uiGuardarCliente()" style="display: none;">Guardar Cliente</button>
+              </div>
+            </form>
+
+            <div id="modulo-tareas-asociadas" style="margin-top: 40px; display: none;">
+              <div class="section-title" style="margin-bottom: 15px;">Historial de Tareas del Cliente</div>
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr><th></th><th>Creación</th><th>Vencim.</th><th>Prioridad</th><th>Cliente</th><th>Cía</th><th>Tarea</th><th>Descripción</th><th>Estado</th><th>Adj.</th></tr>
+                  </thead>
+                  <tbody id="cuerpo-tabla-cliente-directo"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div id="tareas" class="modulo">
+            <div class="header-modulo">
+              <h2>Tarea para: <span id="nombre-cliente-tarea-cabecera" style="color:var(--primary);"></span></h2>
+            </div>
+            <form id="form-tarea" class="zoho-form">
+              <input type="hidden" id="tarea-id-fila">
+              
+              <div id="contenedor-seleccion-cliente">
+                <div class="field-group">
+                  <label>Filtrar y Seleccionar Cliente</label>
+                  <input type="text" placeholder="Escriba para buscar..." onkeyup="filtrarSelectTarea(this.value)">
+                  <select id="select-cliente" onchange="actualizarNombreCabeceraTarea()" style="margin-top:8px;">
+                    <option value="">-- Seleccione --</option>
+                  </select>
+                </div>
+              </div>
+
+              <div id="cliente-bloqueado" style="display:none; margin-bottom:15px;">
+                <div class="field-group">
+                  <label>Cliente</label>
+                  <input type="text" id="nombre-cliente-fijo" readonly class="readonly-input">
+                </div>
+              </div>
+
+              <div class="grid-form" style="margin-top:20px;">
+                <div class="field-group">
+                  <label>Tipo de Tarea</label>
+                  <select id="tarea-tipo">
+                    <option value="">-- Seleccione Tarea --</option>
+                    <option value="Consulta">Consulta</option>
+                    <option value="Contacto">Contacto</option>
+                    <option value="Reclamo terceros">Reclamo terceros</option>
+                    <option value="Presupuesto">Presupuesto</option>
+                    <option value="Modificacion datos matricula">Modificacion datos</option>
+                    <option value="Endoso poliza">Endoso poliza</option>
+                    <option value="Cambio de medio de pago">Cambio de medio de pago</option>
+                    <option value="Siniestro">Siniestro</option>
+                    <option value="Cobranzas">Cobranzas</option>
+                    <option value="Anulacion">Anulacion</option>
+                  </select>
+                </div>
+                <div class="field-group">
+                  <label>Compañía</label>
+                  <select id="tarea-compania">
+                    <option value="Rivadavia">Rivadavia</option>
+                    <option value="Provincia Seguros">Provincia Seguros</option>
+                    <option value="Federación Patronal">Fed. Patronal</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid-form">
+                <div class="field-group">
+                  <label>Estado</label>
+                  <select id="tarea-estado">
+                    <option value="Sin leer">Sin leer</option>
+                    <option value="En proceso">En proceso</option>
+                    <option value="Terminado">Terminado</option>
+                  </select>
+                </div>
+                <div class="field-group">
+                  <label>Prioridad</label>
+                  <select id="tarea-prioridad">
+                    <option value="Normal">Normal</option>
+                    <option value="Urgente">Urgente</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                <div style="flex: 1;">
+                  <label>Vencimiento</label>
+                  <input type="date" id="tarea-vencimiento" style="width: 100%;">
+                </div>
+                <div style="flex: 1;">
+                  <label>Responsable</label>
+                  <select id="tarea-responsable" style="width: 100%; height: 38px;">
+                    <option value="">-- Seleccione --</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field-group" style="margin-top:15px;">
+                <label>Descripción / Detalle</label>
+                <textarea id="tarea-desc" rows="4"></textarea>
+              </div>
+
+              <div class="field-group" style="margin-top:15px;">
+                <label>Adjuntar Documento</label>
+                <input type="file" id="tarea-adjunto" class="file-input">
+              </div>
+
+              <div class="form-actions">
+                <button type="button" id="btn-guardar-tarea" class="btn-principal" onclick="uiGuardarTarea()">Guardar Tarea</button>
+              </div>
+            </form>
+          </div>
+
+          <div id="historial-cliente" class="modulo">
+            <div class="header-modulo">
+              <h2>Tareas por Cliente</h2>
+            </div>
+            <div class="box-search">
+              <label style="font-size: 12px; color: var(--secondary); margin-bottom: 5px; display: block;">Seleccione Cliente para ver línea de tiempo</label>
+              <input type="text" placeholder="Filtrar por nombre..." onkeyup="filtrarSelectHistorial(this.value)">
+              <select id="select-cliente-historial" onchange="uiFiltrarTareasPorCliente(this.value)" style="margin-top:10px;">
+                <option value="">-- Seleccione un cliente --</option>
+              </select>
+            </div>
+            <div class="table-wrapper" style="margin-top:20px;">
+              <table id="tabla-historial-cli" style="display:none;">
+                <thead>
+                  <tr><th></th><th>Creación</th><th>Vencim.</th><th>Prioridad</th><th>Cliente</th><th>Cía</th><th>Tarea</th><th>Descripción</th><th>Estado</th><th>Adj.</th></tr>
+                </thead>
+                <tbody id="cuerpo-tabla-cliente"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div> 
+
+    <?!= include('Scripts'); ?>
+
+    <script>
+      function manejarEnvioLogin(event) {
+        event.preventDefault(); 
+        ejecutarLogin();        
+      }
+    </script>
+  </body>
+</html>
