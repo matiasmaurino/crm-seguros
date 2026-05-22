@@ -18,7 +18,7 @@ function obtenerListaClientes() {
   const hoja = ss.getSheetByName("CLIENTES");
   const data = hoja.getDataRange().getValues();
   if (data.length <= 1) return [];
-
+  
   return data.slice(1).map(r => {
     let etiquetas = [];
     
@@ -33,7 +33,7 @@ function obtenerListaClientes() {
       id: r[0],                            // Columna A
       nombre: r[1] + etiquetaFinal,        // Nombre con corchetes para buscador
       nombrePuro: r[1],                    // Columna B (Nombre original)
-      cuit: r[2],                          // Columna C
+      dni: r[2],                           // <--- CORREGIDO: Cambiado 'cuit' por 'dni' para alinearse con Scripts.html
       domicilio: r[3],                     // Columna D
       telefono: r[4],                      // Columna E
       email: r[5],                         // Columna F

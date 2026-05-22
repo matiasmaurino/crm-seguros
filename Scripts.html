@@ -349,7 +349,14 @@
       let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; s.add(o);
     });
   }
-
+function filtrarSelectTarea(v) {
+    const s = document.getElementById('select-cliente');
+    if (!s) return;
+    s.innerHTML = '<option value="">-- Seleccione --</option>';
+    cacheClientes.filter(c => c.nombre.toLowerCase().includes(v.toLowerCase())).forEach(c => {
+      let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; s.add(o);
+    });
+  }
   function filtrarSelectHistorial(v) {
     const s = document.getElementById('select-cliente-historial');
     s.innerHTML = '<option value="">-- Seleccione un cliente --</option>';
