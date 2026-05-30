@@ -153,7 +153,7 @@ function guardarTarea(t, usuarioActivo) {
   // Preparamos los valores para la fila (Columna A a N)
   const filaValores = [
     new Date(), // A: Fecha Creación
-    null,       // B: ID Tarea (se suele autogenerar o dejar vacío)
+    null,       // B: ID Tarea
     t.compania, // C
     t.tipoTarea, // D
     t.descripcion, // E
@@ -180,17 +180,16 @@ function guardarTarea(t, usuarioActivo) {
     // Si es una tarea nueva
     hoja.appendRow(filaValores);
     
-    // --- LÓGICA DEL CALENDARIO ---
-    // Solo si es una tarea nueva y tiene fecha de vencimiento, la agregamos al calendario
-    if (t.vencimiento && typeof crearEventoCalendario === 'function') {
+    // --- LÓGICA DEL CALENDARIO (CORREGIDA) ---
+    if (t.vencimiento) {
       try {
-        crearEventoCalendario(t.idCliente, t.tipoTarea, t.vencimiento);
+        agendarTareaEnCalendar(t.idCliente, t.tipoTarea, t.vencimiento);
       } catch (e) {
-        console.log("Error al crear evento en calendario: " + e);
+        console.log("Error al crear evento en calendario: " + e.toString());
       }
     }
-  }
-}
+  } // <-- Cierra el 'else'
+} // <-- ¡Asegurate de que esta llave exista! Cierra la función 'guardarTarea'
 
 // --- ARCHIVOS Y LOGIN ---
 
