@@ -400,15 +400,30 @@ function filtrarSelectTarea(v) {
   }
 
   function limpiarFormTarea() {
-    document.getElementById('form-tarea').reset();
-    document.getElementById('tarea-id-fila').value = "";
-    document.getElementById('tarea-vencimiento').type = 'text';
-    document.getElementById('contenedor-seleccion-cliente').style.display = 'block';
-    document.getElementById('cliente-bloqueado').style.display = 'none';
-    document.getElementById('nombre-cliente-tarea-cabecera').innerText = "";
-    document.getElementById('btn-guardar-tarea').disabled = false;
-    document.getElementById('btn-guardar-tarea').innerText = "Guardar Tarea";
-  }
+  document.getElementById('form-tarea').reset();
+  document.getElementById('tarea-id-fila').value = "";
+  
+  // --- CORRECCIÓN: Mantener tipo 'date' y calcular el día posterior (Mañana) ---
+  document.getElementById('tarea-vencimiento').type = 'date';
+  
+  const hoy = new Date();
+  const mañana = new Date(hoy);
+  mañana.setDate(hoy.getDate() + 1); // Suma 1 día a la fecha actual
+  
+  // Formato YYYY-MM-DD necesario para los campos tipo 'date'
+  const año = mañana.getFullYear();
+  const mes = String(mañana.getMonth() + 1).padStart(2, '0');
+  const dia = String(mañana.getDate()).padStart(2, '0');
+  
+  document.getElementById('tarea-vencimiento').value = `${año}-${mes}-${dia}`;
+  // ----------------------------------------------------------------------------
+
+  document.getElementById('contenedor-seleccion-cliente').style.display = 'block';
+  document.getElementById('cliente-bloqueado').style.display = 'none';
+  document.getElementById('nombre-cliente-tarea-cabecera').innerText = "";
+  document.getElementById('btn-guardar-tarea').disabled = false;
+  document.getElementById('btn-guardar-tarea').innerText = "Guardar Tarea";
+}
 
   function actualizarNombreCabeceraTarea() {
     const s = document.getElementById('select-cliente');
