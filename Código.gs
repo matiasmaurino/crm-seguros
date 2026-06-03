@@ -149,27 +149,15 @@ function obtenerTareas() {
 function guardarTarea(t, usuarioActivo) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const hoja = ss.getSheetByName("TAREAS");
+  const data = hoja.getDataRange().getValues();
   
-  // Preparamos los valores para la fila (Columna A a N)
-  const filaValores = [
-    new Date(), // A: Fecha Creación
-    null,       // B: ID Tarea
-    t.compania, // C
-    t.tipoTarea, // D
-    t.descripcion, // E
-    t.vencimiento ? new Date(t.vencimiento + "T12:00:00") : "", // F
-    t.estado,      // G
-    "",            // H
-    "",            // I
-    t.prioridad,   // J
-    t.adjunto,     // K
-    t.idCliente,   // L
-    usuarioActivo || "Sistema", // M: Usuario Logueado
-    t.responsable || ""          // N: Responsable seleccionado
-  ];
+  let idTareaActual = null;
 
   if (t.id_fila) {
-    // Si estamos editando una fila existente (Columna C a N son 12 columnas)
+    // Si estamos EDITANDO una fila existente, no tocamos el ID, mantenemos el que ya tiene la fila
+    // El ID real de la tarea está en la columna B (índice 1 de la fila)
+    idTareaActual = data[Number(t.id_fila) - 1][1];
+    
     hoja.getRange(Number(t.id_fila), 3, 1, 12).setValues([[
       t.compania, t.tipoTarea, t.descripcion, 
       t.vencimiento ? new Date(t.vencimiento + "T12:00:00") : "", 
@@ -177,10 +165,36 @@ function guardarTarea(t, usuarioActivo) {
       usuarioActivo || "Sistema", t.responsable
     ]]);
   } else {
-    // Si es una tarea nueva
+    // Si es una TAREA NUEVA, calculamos el ID de forma correlativa
+    // Si hay más filas aparte del encabezado, agarramos el ID de la última fila y le sumamos 1. Si no, arranca en 1.
+    idTareaActual = data.length > 1 ? Number(data[data.length - 1][1]) + 1 : 1;
+    
+    // Si por alguna razón el último ID no era un número válido, nos aseguramos de que empiece en 1
+    if (isNaN(idTareaActual)) {
+      idTareaActual = 1;
+    }
+
+    // Preparamos los valores para la fila nueva (Columna A a N)
+    const filaValores = [
+      new Date(),     // A: Fecha Creación
+      idTareaActual,  // B: ID Tarea (¡AHORA SÍ SE GENERA AUTOMÁTICAMENTE!)
+      t.compania,     // C
+      t.tipoTarea,    // D
+      t.descripcion,  // E
+      t.vencimiento ? new Date(t.vencimiento + "T12:00:00") : "", // F
+      t.estado,      // G
+      "",            // H
+      "",            // I
+      t.prioridad,   // J
+      t.adjunto,     // K
+      t.idCliente,   // L
+      usuarioActivo || "Sistema", // M: Usuario Logueado
+      t.responsable || ""          // N: Responsable seleccionado
+    ];
+
     hoja.appendRow(filaValores);
     
-    // --- LÓGICA DEL CALENDARIO (CORREGIDA) ---
+    // --- LÓGICA DEL CALENDARIO ---
     if (t.vencimiento) {
       try {
         agendarTareaEnCalendar(t.idCliente, t.tipoTarea, t.vencimiento);
@@ -188,9 +202,8 @@ function guardarTarea(t, usuarioActivo) {
         console.log("Error al crear evento en calendario: " + e.toString());
       }
     }
-  } // <-- Cierra el 'else'
-} // <-- ¡Asegurate de que esta llave exista! Cierra la función 'guardarTarea'
-
+  }
+}
 // --- ARCHIVOS Y LOGIN ---
 
 function subirArchivoADrive(base64, nombre) {
@@ -230,52 +243,60 @@ function validarLogin(usuario, password) {
 }
 
 /**
- * Crea un evento buscando al cliente por su ID único.
+ * CREA EL EVENTO EN TU CALENDARIO ESPECÍFICO (CORREGIDO)
  */
-function guardarTarea(t, usuarioActivo) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName("TAREAS");
-  
-  // Preparamos los valores para la fila (Columna A a N)
-  const filaValores = [
-    new Date(), // A: Fecha Creación
-    null,       // B: ID Tarea
-    t.compania, // C
-    t.tipoTarea, // D
-    t.descripcion, // E
-    t.vencimiento ? new Date(t.vencimiento + "T12:00:00") : "", // F
-    t.estado,      // G
-    "",            // H
-    "",            // I
-    t.prioridad,   // J
-    t.adjunto,     // K
-    t.idCliente,   // L
-    usuarioActivo || "Sistema", // M: Usuario Logueado
-    t.responsable || ""          // N: Responsable seleccionado
-  ];
+function agendarTareaEnCalendar(idCliente, nombreTarea, fechaVencimiento) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const hojaClientes = ss.getSheetByName("CLIENTES");
+    const datosClientes = hojaClientes.getDataRange().getValues();
+    let nombre = "Cliente desconocido";
+    let telefono = "No cargado";
+    let email = "";
 
-  if (t.id_fila) {
-    // Si estamos editando una fila existente (Columna C a N son 12 columnas)
-    hoja.getRange(Number(t.id_fila), 3, 1, 12).setValues([[
-      t.compania, t.tipoTarea, t.descripcion, 
-      t.vencimiento ? new Date(t.vencimiento + "T12:00:00") : "", 
-      t.estado, "", "", t.prioridad, t.adjunto, t.idCliente, 
-      usuarioActivo || "Sistema", t.responsable
-    ]]);
-  } else {
-    // Si es una tarea nueva
-    hoja.appendRow(filaValores);
-    
-    // --- LÓGICA DEL CALENDARIO (CORREGIDA) ---
-    // Solo si es una tarea nueva y tiene fecha de vencimiento
-    if (t.vencimiento) {
-      try {
-        // Llamamos a la función con su nombre correcto: agendarTareaEnCalendar
-        agendarTareaEnCalendar(t.idCliente, t.tipoTarea, t.vencimiento);
-      } catch (e) {
-        console.log("Error al crear evento en calendario: " + e.toString());
+    // 1. Buscar los datos del cliente por su ID
+    for (let i = 1; i < datosClientes.length; i++) {
+      if (datosClientes[i][0].toString() === idCliente.toString()) { 
+        nombre = datosClientes[i][1];   // Columna B: Nombre
+        telefono = datosClientes[i][4]; // Columna E: Teléfono
+        email = datosClientes[i][5];    // Columna F: Email
+        break;
       }
     }
+
+    // --- FORZAMOS TU CALENDARIO PRINCIPAL ---
+    const idCalendarioFijo = "matiasmaurino@gmail.com";
+    const calendario = CalendarApp.getCalendarById(idCalendarioFijo);
+    
+    if (!calendario) {
+      console.log("No se pudo abrir el calendario: " + idCalendarioFijo + ". Revisar permisos.");
+      return;
+    }
+
+    const titulo = "Tarea: " + nombreTarea + " - " + nombre;
+    
+    // 2. Configurar horario (9:00 AM)
+    const fechaEvento = new Date(fechaVencimiento + "T09:00:00");
+    const finEvento = new Date(fechaEvento.getTime() + 60 * 60 * 1000); // 1 hora de duración
+
+    const descripcion = "ID Cliente: " + idCliente +
+                        "\nNombre: " + nombre + 
+                        "\nTarea: " + nombreTarea + 
+                        "\nTeléfono: " + telefono + 
+                        "\nEmail: " + email;
+
+    const evento = calendario.createEvent(titulo, fechaEvento, finEvento, {
+      description: descripcion
+    });
+
+    // 3. Notificación por correo 1 día antes
+    evento.addEmailReminder(1440);
+    
+    console.log("Evento creado con éxito en " + idCalendarioFijo);
+    return evento.getId();
+    
+  } catch (e) {
+    console.log("Error interno en agendarTareaEnCalendar: " + e.toString());
   }
 }
 
