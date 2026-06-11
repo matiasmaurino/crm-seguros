@@ -92,53 +92,63 @@
   }
 
   function renderTabla(lista, idCuerpo) {
-    const tbody = document.getElementById(idCuerpo);
-    if (!tbody) return;
-    tbody.innerHTML = '';
+  const tbody = document.getElementById(idCuerpo);
+  if (!tbody) return;
+  tbody.innerHTML = '';
 
-    if (lista.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--secondary);">No se encontraron tareas</td></tr>`;
-      return;
-    }
-
-    // Ordenamos por vencimiento (las más viejas o vencidas primero)
-    const copia = [...lista].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
-
-    copia.forEach(t => {
-      const tr = document.createElement('tr');
-      
-      // Determinamos clase de prioridad/estado para el estilo
-      let claseFila = '';
-      if (t.estado === 'Terminado') claseFila = 'terminado';
-      else if (t.prioridad === 'Urgente') claseFila = 'urgente';
-      else claseFila = 'normal';
-
-      const jsonStr = encodeURIComponent(JSON.stringify(t));
-
-      // Formateamos fechas de YYYY-MM-DD a DD/MM/YYYY para visualización
-      const fCreacion = t.creacion ? t.creacion.split('-').reverse().join('/') : '';
-      const fVencim = t.vencimiento ? t.vencimiento.split('-').reverse().join('/') : '';
-
-      tr.innerHTML = `
-        <td>
-          <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
-        </td>
-        <td>${fCreacion}</td>
-        <td class="${claseFila}" style="font-weight:600;">${fVencim}</td>
-        <td><span class="badge ${t.prioridad === 'Urgente' ? 'badge-urgente' : 'badge-normal'}">${t.prioridad}</span></td>
-        <td>
-          <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${t.idCliente}'); return false;">
-            ${t.clienteNombre}
-          </a>
-        </td>
-        <td>${t.compania || ''}</td>
-        <td>${t.tipoTarea || ''}</td> <td><span class="texto-descripcion" title="${t.descripcion || ''}">${t.descripcion || ''}</span></td>
-        <td><span class="badge-estado ${t.estado === 'Terminado' ? 'est-terminado' : (t.estado === 'En proceso' ? 'est-proceso' : 'est-sinleer')}">${t.estado}</span></td>
-        <td>${t.urlAdjunto ? `<a href="${t.urlAdjunto}" target="_blank" class="btn-adjunto-tabla" title="Ver documento">📎 Archivo</a>` : '<span style="color:#ccc;">-</span>'}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+  // 1. FILTRADO: Excluimos las terminadas por defecto, 
+  // a menos que TODAS las tareas de la lista provengan del botón "Terminado"
+  const esFiltroTerminado = lista.length > 0 && lista.every(t => t.estado === 'Terminado');
+  
+  let listaFiltrada = lista;
+  if (!esFiltroTerminado) {
+    listaFiltrada = lista.filter(t => t.estado !== 'Terminado');
   }
+
+  // Si después de filtrar no quedan tareas, mostramos el mensaje
+  if (listaFiltrada.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--secondary);">No se encontraron tareas pendientes</td></tr>`;
+    return;
+  }
+
+  // 2. ORDENAMIENTO ORIGINAL: Mantiene tu orden por vencimiento exacto
+  const copia = [...listaFiltrada].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
+
+  copia.forEach(t => {
+    const tr = document.createElement('tr');
+    
+    // Determinamos clase de prioridad/estado para el estilo
+    let claseFila = '';
+    if (t.estado === 'Terminado') claseFila = 'terminado';
+    else if (t.prioridad === 'Urgente') claseFila = 'urgente';
+    else claseFila = 'normal';
+
+    const jsonStr = encodeURIComponent(JSON.stringify(t));
+
+    // Formateamos fechas de YYYY-MM-DD a DD/MM/YYYY para visualización
+    const fCreacion = t.creacion ? t.creacion.split('-').reverse().join('/') : '';
+    const fVencim = t.vencimiento ? t.vencimiento.split('-').reverse().join('/') : '';
+
+    tr.innerHTML = `
+      <td>
+        <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
+      </td>
+      <td>${fCreacion}</td>
+      <td class="${claseFila}" style="font-weight:600;">${fVencim}</td>
+      <td><span class="badge ${t.prioridad === 'Urgente' ? 'badge-urgente' : 'badge-normal'}">${t.prioridad}</span></td>
+      <td>
+        <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${t.idCliente}'); return false;">
+          ${t.clienteNombre}
+        </a>
+      </td>
+      <td>${t.compania || ''}</td>
+      <td>${t.tipoTarea || ''}</td> <td><span class="texto-descripcion" title="${t.descripcion || ''}">${t.descripcion || ''}</span></td>
+      <td><span class="badge-estado ${t.estado === 'Terminado' ? 'est-terminado' : (t.estado === 'En proceso' ? 'est-proceso' : 'est-sinleer')}">${t.estado}</span></td>
+      <td>${t.urlAdjunto ? `<a href="${t.urlAdjunto}" target="_blank" class="btn-adjunto-tabla" title="Ver documento">📎 Archivo</a>` : '<span style="color:#ccc;">-</span>'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
 
   // --- FILTROS ---
   function filtrarUrgentes() {

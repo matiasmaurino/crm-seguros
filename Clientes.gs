@@ -68,3 +68,4 @@ function sincronizarYLimpiarCRM() {
   
   ssCRM.toast("Sincronización completa: IDs y números de cliente actualizados.", "Éxito");
 }
+
