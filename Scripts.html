@@ -42,7 +42,19 @@
           });
         }).obtenerResponsables();
         // ---------------------------------------------
-
+      // --- CARGAR RAMOS DESDE LA HOJA RAMO ---
+google.script.run.withSuccessHandler(ramos => {
+  const elRamo = document.getElementById('tarea-ramo');
+  if (elRamo) {
+    elRamo.options.length = 1; // Mantiene el "-- Seleccione --"
+    ramos.forEach(ramo => {
+      let opt = document.createElement('option');
+      opt.value = ramo;
+      opt.text = ramo;
+      elRamo.add(opt);
+    });
+  }
+}).obtenerRamosLista();
         // CORRECCIÓN: Inicia en la sección 'consulta' usando el primer botón del menú [0]
         const primerBoton = document.querySelectorAll('.nav-item')[0];
         mostrarSeccion('consulta', primerBoton);
@@ -378,17 +390,18 @@ function filtrarPorEstadoPersonalizado(estado, claseBoton) {
 
     const enviar = (url) => {
       const t = {
-        id_fila: document.getElementById('tarea-id-fila').value,
-        idCliente: idCli,
-        tipoTarea: document.getElementById('tarea-tipo').value,
-        compania: document.getElementById('tarea-compania').value,
-        estado: document.getElementById('tarea-estado').value,
-        prioridad: document.getElementById('tarea-prioridad').value,
-        vencimiento: document.getElementById('tarea-vencimiento').value,
-        responsable: document.getElementById('tarea-responsable').value,
-        descripcion: document.getElementById('tarea-desc').value,
-        adjunto: url || ""
-      };
+  id_fila: document.getElementById('tarea-id-fila').value,
+  idCliente: idCli,
+  tipoTarea: document.getElementById('tarea-tipo').value,
+  compania: document.getElementById('tarea-compania').value,
+  estado: document.getElementById('tarea-estado').value,
+  prioridad: document.getElementById('tarea-prioridad').value,
+  vencimiento: document.getElementById('tarea-vencimiento').value,
+  ramo: document.getElementById('tarea-ramo').value, // <-- NUEVO CAMPO
+  responsable: document.getElementById('tarea-responsable').value,
+  descripcion: document.getElementById('tarea-desc').value,
+  adjunto: url || ""
+};
 
       google.script.run.withSuccessHandler(r => {
         mostrarMensajeExito("Tarea guardada con éxito");
@@ -423,6 +436,7 @@ function filtrarPorEstadoPersonalizado(estado, claseBoton) {
     document.getElementById('tarea-estado').value = t.estado;
     document.getElementById('tarea-prioridad').value = t.prioridad;
     document.getElementById('tarea-responsable').value = t.responsable || "";
+    document.getElementById('tarea-ramo').value = t.ramo || ""; 
     document.getElementById('tarea-vencimiento').type = 'date';
     document.getElementById('tarea-vencimiento').value = t.vencimiento;
     document.getElementById('tarea-desc').value = t.descripcion;

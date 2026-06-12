@@ -141,6 +141,7 @@ function obtenerTareas() {
       prioridad: r[9],   
       adjunto: r[10],
       responsable: r[13],
+      ramo: r[14] || "",    // <-- NUEVO: Lee la columna O (índice 14)
       usuario: r[12] || "-" // Columna M
     };
   }).filter(t => t.compania !== "").reverse(); 
@@ -150,7 +151,6 @@ function guardarTarea(t, usuarioActivo) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const hoja = ss.getSheetByName("TAREAS");
   const data = hoja.getDataRange().getValues();
-  
   let idTareaActual = null;
 
   if (t.id_fila) {
@@ -158,26 +158,35 @@ function guardarTarea(t, usuarioActivo) {
     // El ID real de la tarea está en la columna B (índice 1 de la fila)
     idTareaActual = data[Number(t.id_fila) - 1][1];
     
-    hoja.getRange(Number(t.id_fila), 3, 1, 12).setValues([[
-      t.compania, t.tipoTarea, t.descripcion, 
-      t.vencimiento ? new Date(t.vencimiento + "T12:00:00") : "", 
-      t.estado, "", "", t.prioridad, t.adjunto, t.idCliente, 
-      usuarioActivo || "Sistema", t.responsable
+    // CORRECCIÓN: Volvemos a expandir el rango a 13 columnas (Columna C hasta la O)
+    // Agregamos los dos campos vacíos "" originales correspondientes a las columnas H e I para que mantenga la estructura de la base de datos
+    hoja.getRange(Number(t.id_fila), 3, 1, 13).setValues([[
+      t.compania,                    // C
+      t.tipoTarea,                   // D
+      t.descripcion,                 // E
+      t.vencimiento ? new Date(t.vencimiento + "T12:00:00") : "", // F
+      t.estado,                      // G
+      "",                            // H (Vacío estructural)
+      "",                            // I (Vacío estructural)
+      t.prioridad,                   // J
+      t.adjunto,                     // K
+      t.idCliente,                   // L
+      usuarioActivo || "Sistema",    // M: Usuario Logueado
+      t.responsable || "",           // N: Responsable seleccionado
+      t.ramo || ""                   // O: Ramo seleccionado
     ]]);
   } else {
     // Si es una TAREA NUEVA, calculamos el ID de forma correlativa
-    // Si hay más filas aparte del encabezado, agarramos el ID de la última fila y le sumamos 1. Si no, arranca en 1.
     idTareaActual = data.length > 1 ? Number(data[data.length - 1][1]) + 1 : 1;
     
-    // Si por alguna razón el último ID no era un número válido, nos aseguramos de que empiece en 1
     if (isNaN(idTareaActual)) {
       idTareaActual = 1;
     }
 
-    // Preparamos los valores para la fila nueva (Columna A a N)
+    // Preparamos los valores para la fila nueva (Columna A a O)
     const filaValores = [
       new Date(),     // A: Fecha Creación
-      idTareaActual,  // B: ID Tarea (¡AHORA SÍ SE GENERA AUTOMÁTICAMENTE!)
+      idTareaActual,  // B: ID Tarea
       t.compania,     // C
       t.tipoTarea,    // D
       t.descripcion,  // E
@@ -189,7 +198,8 @@ function guardarTarea(t, usuarioActivo) {
       t.adjunto,     // K
       t.idCliente,   // L
       usuarioActivo || "Sistema", // M: Usuario Logueado
-      t.responsable || ""          // N: Responsable seleccionado
+      t.responsable || "",         // N: Responsable seleccionado
+      t.ramo || ""                // O: Ramo seleccionado
     ];
 
     hoja.appendRow(filaValores);
@@ -307,4 +317,20 @@ function obtenerResponsables() {
   const datos = hoja.getDataRange().getValues();
   // Retorna nombres de columna C (índice 2), sin el encabezado
   return datos.slice(1).map(fila => fila[2]).filter(nombre => nombre);
+}
+function obtenerRamosLista() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const hoja = ss.getSheetByName("RAMO");
+    if (!hoja) return [];
+    
+    const data = hoja.getDataRange().getValues();
+    if (data.length <= 1) return []; // Si solo está el encabezado o está vacía
+    
+    // Mapea la columna A (índice 0), omitiendo la fila del encabezado y limpiando vacíos
+    return data.slice(1).map(fila => fila[0].toString().trim()).filter(ramo => ramo);
+  } catch(e) {
+    console.log("Error al obtener ramos: " + e.toString());
+    return [];
+  }
 }
