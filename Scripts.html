@@ -150,56 +150,134 @@
   });
 }
 
-  // --- FILTROS ---
-  function filtrarUrgentes() {
-    const filtradas = cacheTareas.filter(t => t.prioridad === 'Urgente' && t.estado !== 'Terminado');
-    renderTabla(filtradas, 'cuerpo-tabla');
+  // Función auxiliar para prender el botón correcto y apagar el resto
+function activarEfectoFiltro(claseBotonActivo) {
+  // Removemos la clase active de todos los botones de filtro
+  document.querySelectorAll('.filter-buttons .btn-filter').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  
+  // Si nos pasaron un botón específico, le ponemos la X (active)
+  if (claseBotonActivo) {
+    const btn = document.querySelector(`.filter-buttons .${claseBotonActivo}`);
+    if (btn) btn.classList.add('active');
+  }
+}
+
+// --- NUEVA LÓGICA DE FILTRADO Y LIMPIEZA DE CHIPS ---
+
+/**
+ * Función central que maneja qué botón muestra la X y cuáles se apagan.
+ * Si se activa un filtro, apaga "Todas". Si se limpia, activa "Todas".
+ */
+function gestionarClasesFiltro(claseBotonActivo) {
+  // Seleccionamos todos los botones dentro del grupo de filtros
+  const botones = document.querySelectorAll('.btn-filter');
+  
+  botones.forEach(btn => {
+    // Le quitamos la X (clase active) a todos los botones
+    btn.classList.remove('active');
+  });
+
+  // Si activamos un filtro específico (ej: 'vencida-btn')
+  if (claseBotonActivo && claseBotonActivo !== 'todas-btn') {
+    const btnActivo = document.querySelector(`.${claseBotonActivo}`);
+    if (btnActivo) btnActivo.classList.add('active');
+  } else {
+    // Si no hay filtro o se hizo clic en "Todas", marcamos el botón Todas
+    const btnTodas = document.querySelector('.todas-btn');
+    if (btnTodas) btnTodas.classList.add('active');
+  }
+}
+
+/**
+ * ¡Tu nueva función estrella! Limpia absolutamente todos los filtros visuales,
+ * resetea el filtro de responsables al valor "Todos" y muestra la tabla completa.
+ */
+function limpiarTodosLosFiltros() {
+  // 1. Reseteamos las clases visuales (activa el botón "Todas" y apaga el resto)
+  gestionarClasesFiltro('todas-btn');
+  
+  // 2. Reseteamos el selector de Responsables a "Todos"
+  const selectResponsable = document.getElementById('filtro-responsable'); // Verifica si este es el ID de tu <select>
+  if (selectResponsable) {
+    selectResponsable.value = 'Todos';
+  }
+  
+  // 3. Renderizamos la caché completa original
+  renderTabla(cacheTareas, 'cuerpo-tabla');
+}
+
+// --- FILTROS ESPECÍFICOS ---
+
+function filtrarUrgentes() {
+  const btn = document.querySelector('.urgente-btn');
+  // Si ya tenía la X y el usuario vuelve a clickear, limpia todo
+  if (btn && btn.classList.contains('active')) {
+    limpiarTodosLosFiltros();
+    return;
+  }
+  
+  gestionarClasesFiltro('urgente-btn');
+  const filtradas = cacheTareas.filter(t => t.prioridad === 'Urgente' && t.estado !== 'Terminado');
+  renderTabla(filtradas, 'cuerpo-tabla');
+}
+
+function filtrarVencidas() {
+  const btn = document.querySelector('.vencida-btn');
+  if (btn && btn.classList.contains('active')) {
+    limpiarTodosLosFiltros();
+    return;
   }
 
-  function filtrarVencidas() {
-    const hoy = new Date();
-    hoy.setHours(0,0,0,0);
-    const filtradas = cacheTareas.filter(t => {
-      if(!t.vencimiento || t.estado === 'Terminado') return false;
-      const fVenc = new Date(t.vencimiento + "T00:00:00");
-      return fVenc < hoy;
-    });
-    renderTabla(filtradas, 'cuerpo-tabla');
+  gestionarClasesFiltro('vencida-btn');
+  const hoy = new Date();
+  hoy.setHours(0,0,0,0);
+  const filtradas = cacheTareas.filter(t => {
+    if(!t.vencimiento || t.estado === 'Terminado') return false;
+    const fVenc = new Date(t.vencimiento + "T00:00:00");
+    return fVenc < hoy;
+  });
+  renderTabla(filtradas, 'cuerpo-tabla');
+}
+
+function filtrarProximas(dias) {
+  const btn = document.querySelector('.proxima-btn');
+  if (btn && btn.classList.contains('active')) {
+    limpiarTodosLosFiltros();
+    return;
   }
 
-  function filtrarProximas(dias) {
-    const hoy = new Date();
-    hoy.setHours(0,0,0,0);
-    const limite = new Date();
-    limite.setDate(hoy.getDate() + dias);
-    limite.setHours(23,59,59,999);
+  gestionarClasesFiltro('proxima-btn');
+  const hoy = new Date();
+  hoy.setHours(0,0,0,0);
+  const limite = new Date();
+  limite.setDate(hoy.getDate() + dias);
+  limite.setHours(23,59,59,999);
 
-    const filtradas = cacheTareas.filter(t => {
-      if(!t.vencimiento || t.estado === 'Terminado') return false;
-      const fVenc = new Date(t.vencimiento + "T00:00:00");
-      return fVenc >= hoy && fVenc <= limite;
-    });
-    renderTabla(filtradas, 'cuerpo-tabla');
+  const filtradas = cacheTareas.filter(t => {
+    if(!t.vencimiento || t.estado === 'Terminado') return false;
+    const fVenc = new Date(t.vencimiento + "T00:00:00");
+    return fVenc >= hoy && fVenc <= limite;
+  });
+  renderTabla(filtradas, 'cuerpo-tabla');
+}
+
+/**
+ * Maneja dinámicamente Sin Leer, En Proceso y Terminado.
+ * ¡Ahora todos van a mostrar su respectiva X correctamente!
+ */
+function filtrarPorEstadoPersonalizado(estado, claseBoton) {
+  const btn = document.querySelector(`.${claseBoton}`);
+  if (btn && btn.classList.contains('active')) {
+    limpiarTodosLosFiltros();
+    return;
   }
 
-  function filtrarTablaGeneral() {
-    const v = document.getElementById('buscador-tarea').value.toLowerCase();
-    const filtradas = cacheTareas.filter(t => 
-      t.clienteNombre.toLowerCase().includes(v) || 
-      (t.descripcion && t.descripcion.toLowerCase().includes(v)) ||
-      (t.tipoTarea && t.tipoTarea.toLowerCase().includes(v)) ||
-      t.compania.toLowerCase().includes(v)
-    );
-    renderTabla(filtradas, 'cuerpo-tabla');
-  }
-
-  function uiFiltrarTareasPorCliente(id) {
-    if(!id) { document.getElementById('tabla-historial-cli').style.display = 'none'; return; }
-    const filtradas = cacheTareas.filter(t => t.idCliente == id);
-    document.getElementById('tabla-historial-cli').style.display = 'table';
-    renderTabla(filtradas, 'cuerpo-tabla-cliente');
-    document.getElementById('select-cliente-historial').size = 1;
-  }
+  gestionarClasesFiltro(claseBoton);
+  const filtradas = cacheTareas.filter(t => t.estado === estado);
+  renderTabla(filtradas, 'cuerpo-tabla');
+}
 
   // --- GUARDAR CLIENTE ---
   function cargarDatosClienteEdicion(idCliente) {

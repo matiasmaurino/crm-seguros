@@ -38,19 +38,23 @@
             <div class="table-controls" style="flex-direction: column; align-items: flex-start;">
               <input type="text" id="buscador-tarea" placeholder="Buscar Tareas..." onkeyup="filtrarTablaGeneral()" style="width: 100%;">
               
-              <div class="filter-buttons" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-                <button onclick="renderTabla(cacheTareas, 'cuerpo-tabla')" class="btn-filter todas">Todas</button>
-                <button onclick="filtrarVencidas()" class="btn-filter vencida">Vencidas</button>
-                <button onclick="filtrarProximas(3)" class="btn-filter proxima">Vencen en 3 días</button>
-                <button onclick="filtrarUrgentes()" class="btn-filter urgente-btn">Urgentes</button>
-                <button onclick="filtrarPorEstado('Sin leer')" class="btn-filter" style="background-color: var(--secondary); color: white;">Sin Leer</button>
-                <button onclick="filtrarPorEstado('En proceso')" class="btn-filter" style="background-color: var(--primary); color: white;">En Proceso</button>
-                <button onclick="filtrarPorEstado('Terminado')" class="btn-filter terminado-btn">Terminado</button>
-                
-                <select id="filtro-responsable" onchange="filtrarPorResponsable(this.value)" class="btn-filter" style="width:auto; background:white; color:black; border:1px solid #ccc;">
-                  <option value="">Responsable: Todos</option>
-                </select>
-              </div>
+              <div class="filter-buttons" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+  
+  <button onclick="limpiarTodosLosFiltros()" class="btn-limpiar" style="background-color: #6c757d; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+    Limpiar Filtros
+  </button>
+
+  <button onclick="filtrarVencidas()" class="btn-filter vencida-btn" style="background-color: var(--danger); color: white;">Vencidas</button>
+  <button onclick="filtrarProximas(3)" class="btn-filter proxima-btn" style="background-color: var(--warning); color: white;">Vencen en 3 días</button>
+  <button onclick="filtrarUrgentes()" class="btn-filter urgente-btn" style="background-color: black; color: white;">Urgentes</button>
+  <button onclick="filtrarPorEstadoPersonalizado('Sin leer', 'sinleer-btn')" class="btn-filter sinleer-btn" style="background-color: var(--secondary); color: white;">Sin Leer</button>
+  <button onclick="filtrarPorEstadoPersonalizado('En proceso', 'enproceso-btn')" class="btn-filter enproceso-btn" style="background-color: var(--primary); color: white;">En Proceso</button>
+  <button onclick="filtrarPorEstadoPersonalizado('Terminado', 'terminado-btn')" class="btn-filter terminado-btn" style="background-color: #ffc107; color: white;">Terminado</button>
+
+  <select id="filtro-responsable" onchange="filtrarPorResponsable(this.value)" class="form-select" style="width: auto; margin-left: auto;">
+    <option value="Todos">Responsable: Todos</option>
+    </select>
+</div>
             </div>
 
             <div class="table-wrapper">
@@ -298,6 +302,32 @@
         event.preventDefault(); 
         ejecutarLogin();        
       }
+
+     function filtrarPorEstadoPersonalizado(estado, claseBoton) {
+  const btn = document.querySelector(`.${claseBoton}`);
+  if (btn && btn.classList.contains('active')) {
+    activarEfectoFiltro('todas');
+    renderTabla(cacheTareas, 'cuerpo-tabla');
+    return;
+  }
+  activarEfectoFiltro(claseBoton);
+  const filtradas = cacheTareas.filter(t => t.estado === estado);
+  renderTabla(filtradas, 'cuerpo-tabla');
+}
+
+// Hacemos lo mismo para el botón Terminado que ya tiene clase única
+const filtrarPorEstadoOriginal = filtrarPorEstado;
+function filtrarTerminados() {
+  const btn = document.querySelector('.terminado-btn');
+  if (btn && btn.classList.contains('active')) {
+    activarEfectoFiltro('todas');
+    renderTabla(cacheTareas, 'cuerpo-tabla');
+    return;
+  }
+  activarEfectoFiltro('terminado-btn');
+  const filtradas = cacheTareas.filter(t => t.estado === 'Terminado');
+  renderTabla(filtradas, 'cuerpo-tabla');
+} 
     </script>
   </body>
 </html>
