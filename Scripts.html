@@ -119,7 +119,7 @@ google.script.run.withSuccessHandler(ramos => {
 
   // Si después de filtrar no quedan tareas, mostramos el mensaje
   if (listaFiltrada.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--secondary);">No se encontraron tareas pendientes</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">No se encontraron tareas pendientes</td></tr>`;
     return;
   }
 
@@ -147,16 +147,14 @@ google.script.run.withSuccessHandler(ramos => {
       </td>
       <td>${fCreacion}</td>
       <td class="${claseFila}" style="font-weight:600;">${fVencim}</td>
-      <td><span class="badge ${t.prioridad === 'Urgente' ? 'badge-urgente' : 'badge-normal'}">${t.prioridad}</span></td>
       <td>
         <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${t.idCliente}'); return false;">
           ${t.clienteNombre}
         </a>
       </td>
       <td>${t.compania || ''}</td>
-      <td>${t.tipoTarea || ''}</td> <td><span class="texto-descripcion" title="${t.descripcion || ''}">${t.descripcion || ''}</span></td>
-      <td><span class="badge-estado ${t.estado === 'Terminado' ? 'est-terminado' : (t.estado === 'En proceso' ? 'est-proceso' : 'est-sinleer')}">${t.estado}</span></td>
-      <td>${t.urlAdjunto ? `<a href="${t.urlAdjunto}" target="_blank" class="btn-adjunto-tabla" title="Ver documento">📎 Archivo</a>` : '<span style="color:#ccc;">-</span>'}</td>
+      <td>${t.tipoTarea || ''}</td>
+      <td style="font-weight:500; color:var(--zoho-nav);">${t.ramo || '-'}</td> <td><span class="texto-descripcion" title="${t.descripcion || ''}">${t.descripcion || ''}</span></td>
     `;
     tbody.appendChild(tr);
   });

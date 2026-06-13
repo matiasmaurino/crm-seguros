@@ -26,7 +26,7 @@
         <nav class="nav-links">
           <button onclick="mostrarSeccion('consulta', this)" class="nav-item active">Historial Tareas</button>
           <button onclick="mostrarSeccion('tareas', this)" class="nav-item">Nueva Tarea</button>
-          <button onclick="mostrarSeccion('historial-cliente', this)" class="nav-item">Historial Cliente</button>
+          <button onclick="mostrarSeccion('historial-cliente', this)" class="nav-item" style="display: none;">Historial Cliente</button>
           <button onclick="mostrarSeccion('clientes', this)" class="nav-item">Clientes</button>
         </nav>
       </header>
@@ -60,7 +60,7 @@
             <div class="table-wrapper">
               <table>
                 <thead>
-                  <tr><th></th><th>Creación</th><th>Vencim.</th><th>Prioridad</th><th>Cliente</th><th>Cía</th><th>Tarea</th><th>Descripción</th><th>Estado</th><th>Adj.</th></tr>
+                  <tr><th></th><th>Creación</th><th>Vencim.</th><th>Cliente</th><th>Cía</th><th>Tarea</th><th>Ramo</th><th>Descripción</th></tr>
                 </thead>
                 <tbody id="cuerpo-tabla"></tbody>
               </table>
@@ -162,7 +162,7 @@
               <div class="table-wrapper">
                 <table>
                   <thead>
-                    <tr><th></th><th>Creación</th><th>Vencim.</th><th>Prioridad</th><th>Cliente</th><th>Cía</th><th>Tarea</th><th>Descripción</th><th>Estado</th><th>Adj.</th></tr>
+                    <tr><th></th><th>Creación</th><th>Vencim.</th><th>Cliente</th><th>Cía</th><th>Tarea</th><th>Ramo</th><th>Descripción</th></tr>
                   </thead>
                   <tbody id="cuerpo-tabla-cliente-directo"></tbody>
                 </table>
@@ -276,7 +276,7 @@
             </form>
           </div>
 
-          <div id="historial-cliente" class="modulo">
+          <div id="historial-cliente" class="modulo" style="display: none !important;">
             <div class="header-modulo">
               <h2>Tareas por Cliente</h2>
             </div>
@@ -290,7 +290,7 @@
             <div class="table-wrapper" style="margin-top:20px;">
               <table id="tabla-historial-cli" style="display:none;">
                 <thead>
-                  <tr><th></th><th>Creación</th><th>Vencim.</th><th>Prioridad</th><th>Cliente</th><th>Cía</th><th>Tarea</th><th>Descripción</th><th>Estado</th><th>Adj.</th></tr>
+                  <tr><th></th><th>Creación</th><th>Vencim.</th><th>Cliente</th><th>Cía</th><th>Tarea</th><th>Ramo</th><th>Descripción</th></tr>
                 </thead>
                 <tbody id="cuerpo-tabla-cliente"></tbody>
               </table>
