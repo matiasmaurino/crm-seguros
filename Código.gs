@@ -334,3 +334,18 @@ function obtenerRamosLista() {
     return [];
   }
 }
+
+function eliminarTareaEnServidor(idFila) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName("TAREAS");
+  
+  const filaNumero = Number(idFila);
+  
+  // Validación de seguridad por si acaso
+  if (filaNumero > 1 && filaNumero <= hoja.getLastRow()) {
+    hoja.deleteRow(filaNumero);
+    return { exito: true };
+  } else {
+    throw new Error("Número de fila inválido para eliminar.");
+  }
+}

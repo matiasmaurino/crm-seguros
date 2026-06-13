@@ -439,6 +439,12 @@ function filtrarPorEstadoPersonalizado(estado, claseBoton) {
     document.getElementById('tarea-vencimiento').value = t.vencimiento;
     document.getElementById('tarea-desc').value = t.descripcion;
     document.getElementById('nombre-cliente-tarea-cabecera').innerText = t.clienteNombre.toUpperCase();
+
+    document.getElementById('tarea-desc').value = t.descripcion;
+  document.getElementById('nombre-cliente-tarea-cabecera').innerText = t.clienteNombre.toUpperCase();
+  
+  // <-- AGREGAR ESTA LÍNEA AL FINAL:
+  document.getElementById('btn-eliminar-tarea').style.display = 'inline-block';
   }
 
   // --- FILTROS DE SELECTS ---
@@ -523,6 +529,7 @@ function filtrarSelectTarea(v) {
   document.getElementById('nombre-cliente-tarea-cabecera').innerText = "";
   document.getElementById('btn-guardar-tarea').disabled = false;
   document.getElementById('btn-guardar-tarea').innerText = "Guardar Tarea";
+  document.getElementById('btn-eliminar-tarea').style.display = 'none';
 }
 
   function actualizarNombreCabeceraTarea() {
@@ -622,5 +629,26 @@ function limpiarFormCliente() {
   document.getElementById('modulo-tareas-asociadas').style.display = 'none';
   document.getElementById('cuerpo-tabla-cliente-directo').innerHTML = "";
 }
+function uiEliminarTarea() {
+  const idFila = document.getElementById('tarea-id-fila').value;
+  if (!idFila) return;
 
+  // Ventana de confirmación nativa del navegador
+  const confirmar = confirm("Confirme si desea eliminar esta tarea");
+  
+  if (confirmar) {
+    const btnEliminar = document.getElementById('btn-eliminar-tarea');
+    btnEliminar.disabled = true;
+    btnEliminar.innerText = "Eliminando...";
+
+    google.script.run.withSuccessHandler(r => {
+      mostrarMensajeExito("Tarea eliminada con éxito");
+      limpiarFormTarea();
+      
+      // Redirecciona y refresca el historial de tareas
+      const btnConsulta = document.querySelector('button[onclick*="consulta"]');
+      mostrarSeccion('consulta', btnConsulta);
+    }).eliminarTareaEnServidor(idFila);
+  }
+}
 </script>
