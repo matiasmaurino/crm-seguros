@@ -349,3 +349,44 @@ function eliminarTareaEnServidor(idFila) {
     throw new Error("Número de fila inválido para eliminar.");
   }
 }
+/**
+ * Función automatizada corregida según el orden real de tus columnas en Google Sheets.
+ */
+/**
+ * Función automatizada (para ejecutar 1 vez al día)
+ * Revisa todos los renglones de la hoja TAREAS y, si no están agendados,
+ * reutiliza tu función nativa 'agendarTareaEnCalendar' para procesarlos.
+ */
+function sincronizarTareasConCalendario() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName("TAREAS");
+  if (!hoja) return;
+
+  const ultimaFila = hoja.getLastRow();
+  if (ultimaFila < 2) return; // No hay tareas creadas
+
+  // Traemos los valores de la columna de control de IDs de Calendar.
+  // Según tu estructura actual, la columna con el ID de Calendar es la Columna I (9).
+  const rangoIds = hoja.getRange(2, 9, ultimaFila - 1, 1);
+  const valoresIds = rangoIds.getValues();
+
+  // Recorremos renglón por renglón
+  for (let i = 0; i < valoresIds.length; i++) {
+    const idExistente = valoresIds[i][0];
+    const numeroFilaReal = i + 2; // +2 porque el arreglo empieza en 0 y saltamos el encabezado
+
+    // Si el renglón NO tiene un ID de evento en la columna I, lo procesamos
+    if (!idExistente || idExistente.toString().trim() === "") {
+      try {
+        Logger.log(`Procesando automáticamente el renglón ${numeroFilaReal}...`);
+        
+        // Ejecuta TU función original pasándole el número de fila exacto
+        agendarTareaEnCalendar(numeroFilaReal);
+        
+        Logger.log(`Renglón ${numeroFilaReal} sincronizado con éxito.`);
+      } catch (error) {
+        Logger.log(`Error al procesar el renglón ${numeroFilaReal}: ${error.toString()}`);
+      }
+    }
+  }
+}
