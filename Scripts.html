@@ -1,12 +1,13 @@
 <script>
-  let cacheClientes = [];
+ let cacheClientes = [];
   let cacheTareas = [];
   let relacionadosSeleccionados = [];
-  let usuarioLogueado = ""; // Variable para almacenar el usuario que inició sesión
+  let usuarioLogueado = ""; 
 
-  let filtroEstadoActual = "";      // "Sin leer", "En proceso", "Terminado" o vacío
-  let filtroPrioridadActual = "";   // "Urgente" o vacío
-  let filtroVencimientoActual = ""; // "vencidas", "proximas" o vacío
+  // Variables para recordar los filtros activos
+  let filtroEstadoActual = "";      
+  let filtroPrioridadActual = "";   
+  let filtroVencimientoActual = ""; 
   let filtroResponsableActual = "Todos";
 
   window.onload = () => {
@@ -21,10 +22,9 @@ function aplicarFiltrosCombinados() {
   const hoy = new Date();
   hoy.setHours(0,0,0,0);
 
-  // Filtramos la lista aplicando todas las condiciones activas en cadena
   let tareasFiltradas = cacheTareas.filter(t => {
     
-    // 1. Filtro por Cuadro de Búsqueda (busca en cliente, tipo, compañía y descripción)
+    // 1. Filtro por Cuadro de Búsqueda
     if (textoBuscador !== "") {
       const cumpleBusqueda = 
         (t.clienteNombre && t.clienteNombre.toLowerCase().includes(textoBuscador)) ||
@@ -36,12 +36,12 @@ function aplicarFiltrosCombinados() {
       if (!cumpleBusqueda) return false;
     }
 
-    // 2. Filtro por Responsable
+    // 2. Filtro por Responsable Cruzado
     if (filtroResponsableActual !== "Todos") {
       if (!t.responsable || t.responsable !== filtroResponsableActual) return false;
     }
 
-    // 3. Filtro por Estado Personalizado
+    // 3. Filtro por Estado Celda
     if (filtroEstadoActual !== "") {
       if (t.estado !== filtroEstadoActual) return false;
     }
@@ -51,14 +51,14 @@ function aplicarFiltrosCombinados() {
       if (t.prioridad !== filtroPrioridadActual) return false;
     }
 
-    // 5. Filtro por Vencimiento (Vencidas o Próximas 3 días)
+    // 5. Filtro por Vencimiento (Vencidas o Próximas)
     if (filtroVencimientoActual === "vencidas") {
-      if (!t.vencimiento) return false;
+      if (!t.vencimiento || t.estado === 'Terminado') return false;
       const fVenc = new Date(t.vencimiento + "T00:00:00");
       if (fVenc >= hoy) return false;
     } 
     else if (filtroVencimientoActual === "proximas") {
-      if (!t.vencimiento) return false;
+      if (!t.vencimiento || t.estado === 'Terminado') return false;
       const fVenc = new Date(t.vencimiento + "T00:00:00");
       const limite = new Date();
       limite.setDate(hoy.getDate() + 3);
@@ -69,9 +69,56 @@ function aplicarFiltrosCombinados() {
     return true;
   });
 
-  // Enviamos la lista final limpia a tu función renderTabla nativa
-  // Modificamos ligeramente la lógica para que respete el botón "Terminado" si está activo
-  renderTablaFiltrada(tareasFiltradas);
+  // Renderizar la tabla respetando los estados cruzados
+  renderTablaFiltradaDirecta(tareasFiltradas);
+}
+
+function renderTablaFiltradaDirecta(lista) {
+  const tbody = document.getElementById('cuerpo-tabla');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  // Si no se está filtrando específicamente por "Terminado", se ocultan por defecto
+  let listaFinal = lista;
+  if (filtroEstadoActual !== 'Terminado') {
+    listaFinal = lista.filter(t => t.estado !== 'Terminado');
+  }
+
+  if (listaFinal.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">No se encontraron tareas con los filtros aplicados</td></tr>`;
+    return;
+  }
+
+  // Ordenamiento cronológico por vencimiento
+  const copia = [...listaFinal].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
+
+  copia.forEach(t => {
+    const tr = document.createElement('tr');
+    let claseFila = t.estado === 'Terminado' ? 'terminado' : (t.prioridad === 'Urgente' ? 'urgente' : 'normal');
+    const jsonStr = encodeURIComponent(JSON.stringify(t));
+
+    const fCreacion = t.creacion ? t.creacion.split('-').reverse().join('/') : '';
+    const fVencim = t.vencimiento ? t.vencimiento.split('-').reverse().join('/') : '';
+
+    // Estructura exacta sincronizada con tu Index.html
+    tr.innerHTML = `
+      <td>
+        <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
+      </td>
+      <td>${fCreacion}</td>
+      <td class="${claseFila}" style="font-weight:600;">${fVencim}</td>
+      <td>
+        <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${t.idCliente}'); return false;">
+          ${t.clienteNombre}
+        </a>
+      </td>
+      <td>${t.compania || ''}</td>
+      <td>${t.tipoTarea || ''}</td>
+      <td style="font-weight:500; color:var(--zoho-nav);">${t.ramo || '-'}</td>
+      <td><span class="texto-descripcion" title="${t.descripcion || ''}">${t.descripcion || ''}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
 }
 
 /**
@@ -177,12 +224,10 @@ google.script.run.withSuccessHandler(ramos => {
     }).obtenerListaClientes();
   }
 
-  function uiConsultarTareas() {
+ function uiConsultarTareas() {
   google.script.run.withSuccessHandler(t => {
     cacheTareas = t;
-    // REEMPLAZADO: En lugar de renderTabla directo, aplicamos los filtros cruzados
-    aplicarFiltrosCombinados();
-    
+    aplicarFiltrosCombinados(); // <--- Llamada cruzada unificada
     const idCli = document.getElementById('select-cliente-historial').value;
     if(idCli) uiFiltrarTareasPorCliente(idCli);
   }).obtenerTareas();
@@ -285,19 +330,15 @@ function gestionarClasesFiltro(claseBotonActivo) {
   }
 }
 
-// --- NUEVA LOGICA DE CAPTURA DEL BUSCADOR ---
 function filtrarTablaGeneral() {
-  // Cuando el usuario escribe, simplemente ejecutamos el filtro cruzado
   aplicarFiltrosCombinados();
 }
-
-// --- FILTROS DE BOTONES ---
 
 function filtrarUrgentes() {
   const btn = document.querySelector('.urgente-btn');
   if (btn && btn.classList.contains('active')) {
     filtroPrioridadActual = "";
-    gestionarClasesFiltro('todas-btn'); // Apaga visualmente el botón
+    gestionarClasesFiltro('todas-btn');
   } else {
     filtroPrioridadActual = "Urgente";
     gestionarClasesFiltro('urgente-btn');
@@ -346,28 +387,19 @@ function filtrarPorResponsable(nombre) {
   aplicarFiltrosCombinados();
 }
 
-/**
- * Resetea absolutamente todos los estados globales a cero y limpia la caja de texto.
- */
 function limpiarTodosLosFiltros() {
-  // Limpiar variables de control
   filtroEstadoActual = "";
   filtroPrioridadActual = "";
   filtroVencimientoActual = "";
   filtroResponsableActual = "Todos";
   
-  // Limpiar buscador de texto en pantalla
   const inputBuscador = document.getElementById('buscador-tarea');
   if (inputBuscador) inputBuscador.value = "";
   
-  // Resetear el control visual dropdown
   const selectResponsable = document.getElementById('filtro-responsable');
   if (selectResponsable) selectResponsable.value = 'Todos';
   
-  // Apagar las cruces visuales de los chips
   gestionarClasesFiltro('todas-btn');
-  
-  // Ejecutar el render con todo limpio
   aplicarFiltrosCombinados();
 }
 
