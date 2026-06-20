@@ -313,31 +313,7 @@
         ejecutarLogin();        
       }
 
-     function filtrarPorEstadoPersonalizado(estado, claseBoton) {
-  const btn = document.querySelector(`.${claseBoton}`);
-  if (btn && btn.classList.contains('active')) {
-    activarEfectoFiltro('todas');
-    renderTabla(cacheTareas, 'cuerpo-tabla');
-    return;
-  }
-  activarEfectoFiltro(claseBoton);
-  const filtradas = cacheTareas.filter(t => t.estado === estado);
-  renderTabla(filtradas, 'cuerpo-tabla');
-}
-
-// Hacemos lo mismo para el botón Terminado que ya tiene clase única
-const filtrarPorEstadoOriginal = filtrarPorEstado;
-function filtrarTerminados() {
-  const btn = document.querySelector('.terminado-btn');
-  if (btn && btn.classList.contains('active')) {
-    activarEfectoFiltro('todas');
-    renderTabla(cacheTareas, 'cuerpo-tabla');
-    return;
-  }
-  activarEfectoFiltro('terminado-btn');
-  const filtradas = cacheTareas.filter(t => t.estado === 'Terminado');
-  renderTabla(filtradas, 'cuerpo-tabla');
-} 
+    
     </script>
   </body>
 </html>
