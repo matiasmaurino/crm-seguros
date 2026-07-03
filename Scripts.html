@@ -1,222 +1,232 @@
 <script>
- // --- VARIABLES DE ESTADO PARA LOS FILTROS (Asegurate de tenerlas al inicio del script) ---
-let filtroEstadoActual = "";      
-let filtroPrioridadActual = "";   
-let filtroVencimientoActual = ""; 
-let filtroResponsableActual = "Todos";
+  // =========================================================================
+  // SECTOR 1: VARIABLES DE ESTADO GLOBALES Y DE FILTRADO
+  // =========================================================================
+  let cacheClientes = [];
+  let cacheTareas = [];
+  let relacionadosSeleccionados = [];
+  let usuarioLogueado = ""; // Variable para almacenar el usuario que inició sesión
+
+  // Variables activas para la combinación simultánea de filtros
+  let filtroEstadoActual = "";      
+  let filtroPrioridadActual = "";   
+  let filtroVencimientoActual = ""; 
+  let filtroResponsableActual = "Todos";
 
   window.onload = () => {
     // Al cargar, no mostramos nada hasta que se loguee (se maneja en el HTML)
   };
-/**
- * Procesa la memoria cacheTareas aplicando simultáneamente todos los criterios
- * activos (Buscador, Responsable, Estado, Prioridad y Vencimiento).
- */
-function aplicarFiltrosCombinados() {
-  const textoBuscador = document.getElementById('buscador-tarea').value.toLowerCase().trim();
-  const hoy = new Date();
-  hoy.setHours(0,0,0,0);
 
-  let tareasFiltradas = cacheTareas.filter(t => {
-    
-    // 1. Filtro por Cuadro de Búsqueda (Texto)
-    if (textoBuscador !== "") {
-      const cumpleBusqueda = 
-        (t.clienteNombre && t.clienteNombre.toLowerCase().includes(textoBuscador)) ||
-        (t.tipoTarea && t.tipoTarea.toLowerCase().includes(textoBuscador)) ||
-        (t.compania && t.compania.toLowerCase().includes(textoBuscador)) ||
-        (t.descripcion && t.descripcion.toLowerCase().includes(textoBuscador)) ||
-        (t.ramo && t.ramo.toLowerCase().includes(textoBuscador));
-        
-      if (!cumpleBusqueda) return false;
+  // =========================================================================
+  // SECTOR 2: LÓGICA CENTRAL DE FILTROS COMBINADOS
+  // =========================================================================
+  
+  /**
+   * Procesa la memoria cacheTareas aplicando simultáneamente todos los criterios
+   * activos (Buscador, Responsable, Estado, Prioridad y Vencimiento).
+   */
+  function aplicarFiltrosCombinados() {
+    const textoBuscador = document.getElementById('buscador-tarea').value.toLowerCase().trim();
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+
+    let tareasFiltradas = cacheTareas.filter(t => {
+      
+      // 1. Filtro por Cuadro de Búsqueda (Texto)
+      if (textoBuscador !== "") {
+        const cumpleBusqueda = 
+          (t.clienteNombre && t.clienteNombre.toLowerCase().includes(textoBuscador)) ||
+          (t.tipoTarea && t.tipoTarea.toLowerCase().includes(textoBuscador)) ||
+          (t.compania && t.compania.toLowerCase().includes(textoBuscador)) ||
+          (t.descripcion && t.descripcion.toLowerCase().includes(textoBuscador)) ||
+          (t.ramo && t.ramo.toLowerCase().includes(textoBuscador));
+          
+        if (!cumpleBusqueda) return false;
+      }
+
+      // 2. CORRECCIÓN: Filtro Cruzado por Responsable (Tolerante a espacios y case-insensitive)
+      if (filtroResponsableActual !== "Todos") {
+        if (!t.responsable) return false;
+        const respTarea = t.responsable.toString().toLowerCase().trim();
+        const respFiltro = filtroResponsableActual.toString().toLowerCase().trim();
+        if (respTarea !== respFiltro) return false;
+      }
+
+      // 3. Filtro por Estado (Chips)
+      if (filtroEstadoActual !== "") {
+        if (t.estado !== filtroEstadoActual) return false;
+      }
+
+      // 4. Filtro por Prioridad (Urgentes)
+      if (filtroPrioridadActual !== "") {
+        if (t.prioridad !== filtroPrioridadActual) return false;
+      }
+
+      // 5. Filtro por Vencimiento (Vencidas o Próximas)
+      if (filtroVencimientoActual === "vencidas") {
+        if (!t.vencimiento || t.estado === 'Terminado') return false;
+        const fVenc = new Date(t.vencimiento + "T00:00:00");
+        if (fVenc >= hoy) return false;
+      } 
+      else if (filtroVencimientoActual === "proximas") {
+        if (!t.vencimiento || t.estado === 'Terminado') return false;
+        const fVenc = new Date(t.vencimiento + "T00:00:00");
+        const limite = new Date();
+        limite.setDate(hoy.getDate() + 3);
+        limite.setHours(23,59,59,999);
+        if (fVenc < hoy || fVenc > limite) return false;
+      }
+
+      return true;
+    });
+
+    renderTablaFiltradaDirecta(tareasFiltradas);
+  }
+
+  /**
+   * Dibuja la tabla del Historial respetando estrictamente las columnas de tu Index.html
+   */
+  function renderTablaFiltradaDirecta(lista) {
+    const tbody = document.getElementById('cuerpo-tabla');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    // Excluimos 'Terminado' a menos que estemos filtrando por ese estado explícitamente
+    let listaFinal = lista;
+    if (filtroEstadoActual !== 'Terminado') {
+      listaFinal = lista.filter(t => t.estado !== 'Terminado');
     }
 
-    // 2. Filtro Cruzado por Responsable
-    if (filtroResponsableActual !== "Todos") {
-      if (!t.responsable || t.responsable !== filtroResponsableActual) return false;
+    if (listaFinal.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">No se encontraron tareas pendientes</td></tr>`;
+      return;
     }
 
-    // 3. Filtro por Estado (Chips)
-    if (filtroEstadoActual !== "") {
-      if (t.estado !== filtroEstadoActual) return false;
-    }
+    // Ordenamos cronológicamente por fecha de vencimiento
+    const copia = [...listaFinal].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
 
-    // 4. Filtro por Prioridad (Urgentes)
-    if (filtroPrioridadActual !== "") {
-      if (t.prioridad !== filtroPrioridadActual) return false;
-    }
+    copia.forEach(t => {
+      const tr = document.createElement('tr');
+      let claseFila = t.estado === 'Terminado' ? 'terminado' : (t.prioridad === 'Urgente' ? 'urgente' : 'normal');
+      const jsonStr = encodeURIComponent(JSON.stringify(t));
 
-    // 5. Filtro por Vencimiento (Vencidas o Próximas)
-    if (filtroVencimientoActual === "vencidas") {
-      if (!t.vencimiento || t.estado === 'Terminado') return false;
-      const fVenc = new Date(t.vencimiento + "T00:00:00");
-      if (fVenc >= hoy) return false;
-    } 
-    else if (filtroVencimientoActual === "proximas") {
-      if (!t.vencimiento || t.estado === 'Terminado') return false;
-      const fVenc = new Date(t.vencimiento + "T00:00:00");
-      const limite = new Date();
-      limite.setDate(hoy.getDate() + 3);
-      limite.setHours(23,59,59,999);
-      if (fVenc < hoy || fVenc > limite) return false;
-    }
+      const fCreacion = t.creacion ? t.creacion.split('-').reverse().join('/') : '';
+      const fVencim = t.vencimiento ? t.vencimiento.split('-').reverse().join('/') : '';
 
-    return true;
-  });
-
-  renderTablaFiltradaDirecta(tareasFiltradas);
-}
-
-/**
- * Dibuja la tabla respetando estrictamente las columnas de tu Index.html
- */
-function renderTablaFiltradaDirecta(lista) {
-  const tbody = document.getElementById('cuerpo-tabla');
-  if (!tbody) return;
-  tbody.innerHTML = '';
-
-  // Excluimos 'Terminado' a menos que estemos filtrando por ese estado explícitamente
-  let listaFinal = lista;
-  if (filtroEstadoActual !== 'Terminado') {
-    listaFinal = lista.filter(t => t.estado !== 'Terminado');
+      tr.innerHTML = `
+        <td>
+          <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
+        </td>
+        <td>${fCreacion}</td>
+        <td class="${claseFila}" style="font-weight:600;">${fVencim}</td>
+        <td>
+          <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${t.idCliente}'); return false;">
+            ${t.clienteNombre}
+          </a>
+        </td>
+        <td>${t.compania || ''}</td>
+        <td>${t.tipoTarea || ''}</td>
+        <td style="font-weight:500; color:var(--zoho-nav);">${t.ramo || '-'}</td>
+        <td><span class="texto-descripcion" title="${t.descripcion || ''}">${t.descripcion || ''}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
   }
 
-  if (listaFinal.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">No se encontraron tareas pendientes</td></tr>`;
-    return;
-  }
-
-  // Ordenamos cronológicamente por fecha de vencimiento
-  const copia = [...listaFinal].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
-
-  copia.forEach(t => {
-    const tr = document.createElement('tr');
-    let claseFila = t.estado === 'Terminado' ? 'terminado' : (t.prioridad === 'Urgente' ? 'urgente' : 'normal');
-    const jsonStr = encodeURIComponent(JSON.stringify(t));
-
-    const fCreacion = t.creacion ? t.creacion.split('-').reverse().join('/') : '';
-    const fVencim = t.vencimiento ? t.vencimiento.split('-').reverse().join('/') : '';
-
-    tr.innerHTML = `
-      <td>
-        <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
-      </td>
-      <td>${fCreacion}</td>
-      <td class="${claseFila}" style="font-weight:600;">${fVencim}</td>
-      <td>
-        <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${t.idCliente}'); return false;">
-          ${t.clienteNombre}
-        </a>
-      </td>
-      <td>${t.compania || ''}</td>
-      <td>${t.tipoTarea || ''}</td>
-      <td style="font-weight:500; color:var(--zoho-nav);">${t.ramo || '-'}</td>
-      <td><span class="texto-descripcion" title="${t.descripcion || ''}">${t.descripcion || ''}</span></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-// --- DISPARADORES ACCIONADOS POR LA INTERFAZ ---
-
-function filtrarTablaGeneral() {
-  aplicarFiltrosCombinados();
-}
-
-function filtrarPorResponsable(nombre) {
-  filtroResponsableActual = nombre || "Todos";
-  aplicarFiltrosCombinados();
-}
-
-/**
- * Siguiendo tu idea: Cada vez que se cambia o se quita un botón de filtro, 
- * reseteamos los demás botones para evitar conflictos de estados invisibles.
- */
-function resetearSoloBotonesDeFiltro() {
-  filtroEstadoActual = "";
-  filtroPrioridadActual = "";
-  filtroVencimientoActual = "";
-  gestionarClasesFiltro('todas-btn');
-}
-
-function filtrarUrgentes() {
-  const btn = document.querySelector('.urgente-btn');
-  const yaEstabaActivo = btn && btn.classList.contains('active');
-  
-  resetearSoloBotonesDeFiltro(); // Limpia los otros botones
-  
-  if (!yaEstabaActivo) {
-    filtroPrioridadActual = "Urgente";
-    gestionarClasesFiltro('urgente-btn');
-  }
-  aplicarFiltrosCombinados();
-}
-
-function filtrarVencidas() {
-  const btn = document.querySelector('.vencida-btn');
-  const yaEstabaActivo = btn && btn.classList.contains('active');
-  
-  resetearSoloBotonesDeFiltro();
-  
-  if (!yaEstabaActivo) {
-    filtroVencimientoActual = "vencidas";
-    gestionarClasesFiltro('vencida-btn');
-  }
-  aplicarFiltrosCombinados();
-}
-
-function filtrarProximas(dias) {
-  const btn = document.querySelector('.proxima-btn');
-  const yaEstabaActivo = btn && btn.classList.contains('active');
-  
-  resetearSoloBotonesDeFiltro();
-  
-  if (!yaEstabaActivo) {
-    filtroVencimientoActual = "proximas";
-    gestionarClasesFiltro('proxima-btn');
-  }
-  aplicarFiltrosCombinados();
-}
-
-function filtrarPorEstadoPersonalizado(estado, claseBoton) {
-  const btn = document.querySelector(`.${claseBoton}`);
-  const yaEstabaActivo = btn && btn.classList.contains('active');
-  
-  resetearSoloBotonesDeFiltro();
-  
-  if (!yaEstabaActivo) {
-    filtroEstadoActual = estado;
-    gestionarClasesFiltro(claseBoton);
-  }
-  aplicarFiltrosCombinados();
-}
-
-function limpiarTodosLosFiltros() {
-  filtroEstadoActual = "";
-  filtroPrioridadActual = "";
-  filtroVencimientoActual = "";
-  filtroResponsableActual = "Todos";
-  
-  const inputBuscador = document.getElementById('buscador-tarea');
-  if (inputBuscador) inputBuscador.value = "";
-  
-  const selectResponsable = document.getElementById('filtro-responsable');
-  if (selectResponsable) selectResponsable.value = 'Todos';
-  
-  gestionarClasesFiltro('todas-btn');
-  aplicarFiltrosCombinados();
-}
-
-function uiConsultarTareas() {
-  google.script.run.withSuccessHandler(t => {
-    cacheTareas = t;
+  // =========================================================================
+  // SECTOR 3: DISPARADORES ACCIONADOS POR BOTONES DE FILTRO (CHIPS)
+  // =========================================================================
+  function filtrarTablaGeneral() {
     aplicarFiltrosCombinados();
-    const idCli = document.getElementById('select-cliente-historial').value;
-    if(idCli) uiFiltrarTareasPorCliente(idCli);
-  }).obtenerTareas();
-}
+  }
 
-  // --- LÓGICA DE LOGIN ---
+  function filtrarPorResponsable(nombre) {
+    filtroResponsableActual = nombre || "Todos";
+    aplicarFiltrosCombinados();
+  }
+
+  /**
+   * Modificado siguiendo tu sugerencia: Resetea los demás botones de filtro tipo chip 
+   * para evitar solapamientos visuales o lógicos extraños.
+   */
+  function resetearSoloBotonesDeFiltro() {
+    filtroEstadoActual = "";
+    filtroPrioridadActual = "";
+    filtroVencimientoActual = "";
+    gestionarClasesFiltro('todas-btn');
+  }
+
+  function filtrarUrgentes() {
+    const btn = document.querySelector('.urgente-btn');
+    const yaEstabaActivo = btn && btn.classList.contains('active');
+    
+    resetearSoloBotonesDeFiltro(); // Limpia los otros botones
+    
+    if (!yaEstabaActivo) {
+      filtroPrioridadActual = "Urgente";
+      gestionarClasesFiltro('urgente-btn');
+    }
+    aplicarFiltrosCombinados();
+  }
+
+  function filtrarVencidas() {
+    const btn = document.querySelector('.vencida-btn');
+    const yaEstabaActivo = btn && btn.classList.contains('active');
+    
+    resetearSoloBotonesDeFiltro();
+    
+    if (!yaEstabaActivo) {
+      filtroVencimientoActual = "vencidas";
+      gestionarClasesFiltro('vencida-btn');
+    }
+    aplicarFiltrosCombinados();
+  }
+
+  function filtrarProximas(dias) {
+    const btn = document.querySelector('.proxima-btn');
+    const yaEstabaActivo = btn && btn.classList.contains('active');
+    
+    resetearSoloBotonesDeFiltro();
+    
+    if (!yaEstabaActivo) {
+      filtroVencimientoActual = "proximas";
+      gestionarClasesFiltro('proxima-btn');
+    }
+    aplicarFiltrosCombinados();
+  }
+
+  function filtrarPorEstadoPersonalizado(estado, claseBoton) {
+    const btn = document.querySelector(`.${claseBoton}`);
+    const yaEstabaActivo = btn && btn.classList.contains('active');
+    
+    resetearSoloBotonesDeFiltro();
+    
+    if (!yaEstabaActivo) {
+      filtroEstadoActual = estado;
+      gestionarClasesFiltro(claseBoton);
+    }
+    aplicarFiltrosCombinados();
+  }
+
+  function limpiarTodosLosFiltros() {
+    filtroEstadoActual = "";
+    filtroPrioridadActual = "";
+    filtroVencimientoActual = "";
+    filtroResponsableActual = "Todos";
+    
+    const inputBuscador = document.getElementById('buscador-tarea');
+    if (inputBuscador) inputBuscador.value = "";
+    
+    const selectResponsable = document.getElementById('filtro-responsable');
+    if (selectResponsable) selectResponsable.value = 'Todos';
+    
+    gestionarClasesFiltro('todas-btn');
+    aplicarFiltrosCombinados();
+  }
+
+  // =========================================================================
+  // SECTOR 4: ACCESO DEL SISTEMA (LOGIN Y MENÚ DE SECCIONES)
+  // =========================================================================
   function ejecutarLogin() {
     const u = document.getElementById('user').value;
     const p = document.getElementById('pass').value;
@@ -238,7 +248,6 @@ function uiConsultarTareas() {
           ids.forEach(id => {
             const el = document.getElementById(id);
             if (el) {
-              // Limpiamos opciones previas excepto la primera
               el.options.length = 1; 
               responsables.forEach(res => {
                 let opt = document.createElement('option');
@@ -249,21 +258,21 @@ function uiConsultarTareas() {
             }
           });
         }).obtenerResponsables();
-        // ---------------------------------------------
-      // --- CARGAR RAMOS DESDE LA HOJA RAMO ---
-google.script.run.withSuccessHandler(ramos => {
-  const elRamo = document.getElementById('tarea-ramo');
-  if (elRamo) {
-    elRamo.options.length = 1; // Mantiene el "-- Seleccione --"
-    ramos.forEach(ramo => {
-      let opt = document.createElement('option');
-      opt.value = ramo;
-      opt.text = ramo;
-      elRamo.add(opt);
-    });
-  }
-}).obtenerRamosLista();
-        // CORRECCIÓN: Inicia en la sección 'consulta' usando el primer botón del menú [0]
+        
+        // --- CARGAR RAMOS DESDE LA HOJA RAMO ---
+        google.script.run.withSuccessHandler(ramos => {
+          const elRamo = document.getElementById('tarea-ramo');
+          if (elRamo) {
+            elRamo.options.length = 1; 
+            ramos.forEach(ramo => {
+              let opt = document.createElement('option');
+              opt.value = ramo;
+              opt.text = ramo;
+              elRamo.add(opt);
+            });
+          }
+        }).obtenerRamosLista();
+
         const primerBoton = document.querySelectorAll('.nav-item')[0];
         mostrarSeccion('consulta', primerBoton);
         mostrarMensajeExito("Bienvenido " + u);
@@ -285,6 +294,198 @@ google.script.run.withSuccessHandler(ramos => {
     }
   }
 
+  // =========================================================================
+  // SECTOR 5: GESTIÓN DE TAREAS (UI, RENDER BASE ORIGINAL, GRABACIÓN Y ELIMINACIÓN)
+  // =========================================================================
+  function uiConsultarTareas() {
+    google.script.run.withSuccessHandler(t => {
+      cacheTareas = t;
+      aplicarFiltrosCombinados(); 
+      const idCli = document.getElementById('select-cliente-historial').value;
+      if(idCli) uiFiltrarTareasPorCliente(idCli);
+    }).obtenerTareas();
+  }
+
+  function renderTabla(lista, idCuerpo) {
+    const tbody = document.getElementById(idCuerpo);
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const esFiltroTerminado = lista.length > 0 && lista.every(t => t.estado === 'Terminado');
+    let listaFiltrada = lista;
+    if (!esFiltroTerminado) {
+      listaFiltrada = lista.filter(t => t.estado !== 'Terminado');
+    }
+
+    if (listaFiltrada.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">No se encontraron tareas pendientes</td></tr>`;
+      return;
+    }
+
+    const copia = [...listaFiltrada].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
+
+    copia.forEach(t => {
+      const tr = document.createElement('tr');
+      let claseFila = t.estado === 'Terminado' ? 'terminado' : (t.prioridad === 'Urgente' ? 'urgente' : 'normal');
+      const jsonStr = encodeURIComponent(JSON.stringify(t));
+
+      const fCreacion = t.creacion ? t.creacion.split('-').reverse().join('/') : '';
+      const fVencim = t.vencimiento ? t.vencimiento.split('-').reverse().join('/') : '';
+
+      tr.innerHTML = `
+        <td>
+          <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
+        </td>
+        <td>${fCreacion}</td>
+        <td class="${claseFila}" style="font-weight:600;">${fVencim}</td>
+        <td>
+          <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${t.idCliente}'); return false;">
+            ${t.clienteNombre}
+          </a>
+        </td>
+        <td>${t.compania || ''}</td>
+        <td>${t.tipoTarea || ''}</td>
+        <td style="font-weight:500; color:var(--zoho-nav);">${t.ramo || '-'}</td> <td><span class="texto-descripcion" title="${t.descripcion || ''}">${t.descripcion || ''}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function uiGuardarTarea() {
+    let idCli = document.getElementById('select-cliente').value;
+    
+    if (!idCli || idCli === "") {
+      const contenedorBloqueado = document.getElementById('cliente-bloqueado');
+      if (contenedorBloqueado.style.display === 'block') {
+        const nombreFijo = document.getElementById('nombre-cliente-fijo').value;
+        const clienteEncontrado = cacheClientes.find(c => c.nombre === nombreFijo);
+        if (clienteEncontrado) idCli = clienteEncontrado.id;
+      }
+    }
+
+    if(!idCli || idCli === "") {
+      mostrarMensajeExito("Error: No se pudo identificar al cliente");
+      return;
+    }
+
+    const btn = document.getElementById('btn-guardar-tarea');
+    const file = document.getElementById('tarea-adjunto').files[0];
+    btn.disabled = true; 
+    btn.innerText = "Procesando...";
+
+    const enviar = (url) => {
+      const t = {
+        id_fila: document.getElementById('tarea-id-fila').value,
+        idCliente: idCli,
+        tipoTarea: document.getElementById('tarea-tipo').value,
+        compania: document.getElementById('tarea-compania').value,
+        estado: document.getElementById('tarea-estado').value,
+        prioridad: document.getElementById('tarea-prioridad').value,
+        vencimiento: document.getElementById('tarea-vencimiento').value,
+        ramo: document.getElementById('tarea-ramo').value, 
+        responsable: document.getElementById('tarea-responsable').value,
+        descripcion: document.getElementById('tarea-desc').value,
+        adjunto: url || ""
+      };
+
+      google.script.run.withSuccessHandler(r => {
+        mostrarMensajeExito("Tarea guardada con éxito");
+        limpiarFormTarea();
+        const btnConsulta = document.querySelector('button[onclick*="consulta"]');
+        mostrarSeccion('consulta', btnConsulta);
+      }).guardarTarea(t, usuarioLogueado); 
+    };
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = e => google.script.run.withSuccessHandler(url => enviar(url)).subirArchivoADrive(e.target.result, file.name);
+      reader.readAsDataURL(file);
+    } else {
+      enviar("");
+    }
+  }
+
+  function prepararEdicionTarea(json) {
+    const t = JSON.parse(decodeURIComponent(json));
+    const btnTarea = document.querySelectorAll('.nav-item')[1];
+    mostrarSeccion('tareas', btnTarea);
+    document.getElementById('tarea-id-fila').value = t.id_fila;
+    document.getElementById('contenedor-seleccion-cliente').style.display = 'none';
+    document.getElementById('cliente-bloqueado').style.display = 'block';
+    document.getElementById('nombre-cliente-fijo').value = t.clienteNombre;
+    document.getElementById('select-cliente').value = t.idCliente;
+    document.getElementById('tarea-tipo').value = t.tipoTarea || "";
+    document.getElementById('tarea-compania').value = t.compania;
+    document.getElementById('tarea-estado').value = t.estado;
+    document.getElementById('tarea-prioridad').value = t.prioridad;
+    document.getElementById('tarea-responsable').value = t.responsable || "";
+    document.getElementById('tarea-ramo').value = t.ramo || ""; 
+    document.getElementById('tarea-vencimiento').type = 'date';
+    document.getElementById('tarea-vencimiento').value = t.vencimiento;
+    document.getElementById('tarea-desc').value = t.descripcion;
+    document.getElementById('nombre-cliente-tarea-cabecera').innerText = t.clienteNombre.toUpperCase();
+
+    document.getElementById('tarea-desc').value = t.descripcion;
+    document.getElementById('nombre-cliente-tarea-cabecera').innerText = t.clienteNombre.toUpperCase();
+    
+    document.getElementById('btn-eliminar-tarea').style.display = 'inline-block';
+  }
+
+  function uiEliminarTarea() {
+    const idFila = document.getElementById('tarea-id-fila').value;
+    if (!idFila) return;
+
+    const confirmar = confirm("Confirme si desea eliminar esta tarea");
+    if (confirmar) {
+      const btnEliminar = document.getElementById('btn-eliminar-tarea');
+      btnEliminar.disabled = true;
+      btnEliminar.innerText = "Eliminando...";
+
+      google.script.run.withSuccessHandler(r => {
+        mostrarMensajeExito("Tarea eliminada con éxito");
+        limpiarFormTarea();
+        const btnConsulta = document.querySelector('button[onclick*="consulta"]');
+        mostrarSeccion('consulta', btnConsulta);
+      }).eliminarTareaEnServidor(idFila);
+    }
+  }
+
+  function filtrarPorEstado(estado) {
+    const filtradas = cacheTareas.filter(t => t.estado === estado);
+    renderTabla(filtradas, 'cuerpo-tabla');
+  }
+
+  function limpiarFormTarea() {
+    document.getElementById('form-tarea').reset();
+    document.getElementById('tarea-id-fila').value = "";
+    document.getElementById('tarea-vencimiento').type = 'date';
+    
+    const hoy = new Date();
+    const mañana = new Date(hoy);
+    mañana.setDate(hoy.getDate() + 1); 
+    
+    const año = mañana.getFullYear();
+    const mes = String(mañana.getMonth() + 1).padStart(2, '0');
+    const dia = String(mañana.getDate()).padStart(2, '0');
+    
+    document.getElementById('tarea-vencimiento').value = `${año}-${mes}-${dia}`;
+
+    document.getElementById('contenedor-seleccion-cliente').style.display = 'block';
+    document.getElementById('cliente-bloqueado').style.display = 'none';
+    document.getElementById('nombre-cliente-tarea-cabecera').innerText = "";
+    document.getElementById('btn-guardar-tarea').disabled = false;
+    document.getElementById('btn-guardar-tarea').innerText = "Guardar Tarea";
+    document.getElementById('btn-eliminar-tarea').style.display = 'none';
+  }
+
+  function actualizarNombreCabeceraTarea() {
+    const s = document.getElementById('select-cliente');
+    document.getElementById('nombre-cliente-tarea-cabecera').innerText = s.selectedIndex > 0 ? s.options[s.selectedIndex].text.toUpperCase() : "";
+  }
+
+  // =========================================================================
+  // SECTOR 6: GESTIÓN DE CLIENTES Y EDICIONES
+  // =========================================================================
   function actualizarListaClientesGlobal() {
     google.script.run.withSuccessHandler(cs => {
       cacheClientes = cs;
@@ -302,231 +503,42 @@ google.script.run.withSuccessHandler(ramos => {
     }).obtenerListaClientes();
   }
 
- function uiConsultarTareas() {
-  google.script.run.withSuccessHandler(t => {
-    cacheTareas = t;
-    aplicarFiltrosCombinados(); // <--- Llamada cruzada unificada
-    const idCli = document.getElementById('select-cliente-historial').value;
-    if(idCli) uiFiltrarTareasPorCliente(idCli);
-  }).obtenerTareas();
-}
-
-  function renderTabla(lista, idCuerpo) {
-  const tbody = document.getElementById(idCuerpo);
-  if (!tbody) return;
-  tbody.innerHTML = '';
-
-  // 1. FILTRADO: Excluimos las terminadas por defecto, 
-  // a menos que TODAS las tareas de la lista provengan del botón "Terminado"
-  const esFiltroTerminado = lista.length > 0 && lista.every(t => t.estado === 'Terminado');
-  
-  let listaFiltrada = lista;
-  if (!esFiltroTerminado) {
-    listaFiltrada = lista.filter(t => t.estado !== 'Terminado');
-  }
-
-  // Si después de filtrar no quedan tareas, mostramos el mensaje
-  if (listaFiltrada.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">No se encontraron tareas pendientes</td></tr>`;
-    return;
-  }
-
-  // 2. ORDENAMIENTO ORIGINAL: Mantiene tu orden por vencimiento exacto
-  const copia = [...listaFiltrada].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
-
-  copia.forEach(t => {
-    const tr = document.createElement('tr');
-    
-    // Determinamos clase de prioridad/estado para el estilo
-    let claseFila = '';
-    if (t.estado === 'Terminado') claseFila = 'terminado';
-    else if (t.prioridad === 'Urgente') claseFila = 'urgente';
-    else claseFila = 'normal';
-
-    const jsonStr = encodeURIComponent(JSON.stringify(t));
-
-    // Formateamos fechas de YYYY-MM-DD a DD/MM/YYYY para visualización
-    const fCreacion = t.creacion ? t.creacion.split('-').reverse().join('/') : '';
-    const fVencim = t.vencimiento ? t.vencimiento.split('-').reverse().join('/') : '';
-
-    tr.innerHTML = `
-      <td>
-        <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
-      </td>
-      <td>${fCreacion}</td>
-      <td class="${claseFila}" style="font-weight:600;">${fVencim}</td>
-      <td>
-        <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${t.idCliente}'); return false;">
-          ${t.clienteNombre}
-        </a>
-      </td>
-      <td>${t.compania || ''}</td>
-      <td>${t.tipoTarea || ''}</td>
-      <td style="font-weight:500; color:var(--zoho-nav);">${t.ramo || '-'}</td> <td><span class="texto-descripcion" title="${t.descripcion || ''}">${t.descripcion || ''}</span></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-  // Función auxiliar para prender el botón correcto y apagar el resto
-function activarEfectoFiltro(claseBotonActivo) {
-  // Removemos la clase active de todos los botones de filtro
-  document.querySelectorAll('.filter-buttons .btn-filter').forEach(btn => {
-    btn.classList.remove('active');
-  });
-  
-  // Si nos pasaron un botón específico, le ponemos la X (active)
-  if (claseBotonActivo) {
-    const btn = document.querySelector(`.filter-buttons .${claseBotonActivo}`);
-    if (btn) btn.classList.add('active');
-  }
-}
-
-// --- NUEVA LÓGICA DE FILTRADO Y LIMPIEZA DE CHIPS ---
-
-/**
- * Función central que maneja qué botón muestra la X y cuáles se apagan.
- * Si se activa un filtro, apaga "Todas". Si se limpia, activa "Todas".
- */
-function gestionarClasesFiltro(claseBotonActivo) {
-  // Seleccionamos todos los botones dentro del grupo de filtros
-  const botones = document.querySelectorAll('.btn-filter');
-  
-  botones.forEach(btn => {
-    // Le quitamos la X (clase active) a todos los botones
-    btn.classList.remove('active');
-  });
-
-  // Si activamos un filtro específico (ej: 'vencida-btn')
-  if (claseBotonActivo && claseBotonActivo !== 'todas-btn') {
-    const btnActivo = document.querySelector(`.${claseBotonActivo}`);
-    if (btnActivo) btnActivo.classList.add('active');
-  } else {
-    // Si no hay filtro o se hizo clic en "Todas", marcamos el botón Todas
-    const btnTodas = document.querySelector('.todas-btn');
-    if (btnTodas) btnTodas.classList.add('active');
-  }
-}
-
-function filtrarTablaGeneral() {
-  aplicarFiltrosCombinados();
-}
-
-function filtrarUrgentes() {
-  const btn = document.querySelector('.urgente-btn');
-  if (btn && btn.classList.contains('active')) {
-    filtroPrioridadActual = "";
-    gestionarClasesFiltro('todas-btn');
-  } else {
-    filtroPrioridadActual = "Urgente";
-    gestionarClasesFiltro('urgente-btn');
-  }
-  aplicarFiltrosCombinados();
-}
-
-function filtrarVencidas() {
-  const btn = document.querySelector('.vencida-btn');
-  if (btn && btn.classList.contains('active')) {
-    filtroVencimientoActual = "";
-    gestionarClasesFiltro('todas-btn');
-  } else {
-    filtroVencimientoActual = "vencidas";
-    gestionarClasesFiltro('vencida-btn');
-  }
-  aplicarFiltrosCombinados();
-}
-
-function filtrarProximas(dias) {
-  const btn = document.querySelector('.proxima-btn');
-  if (btn && btn.classList.contains('active')) {
-    filtroVencimientoActual = "";
-    gestionarClasesFiltro('todas-btn');
-  } else {
-    filtroVencimientoActual = "proximas";
-    gestionarClasesFiltro('proxima-btn');
-  }
-  aplicarFiltrosCombinados();
-}
-
-function filtrarPorEstadoPersonalizado(estado, claseBoton) {
-  const btn = document.querySelector(`.${claseBoton}`);
-  if (btn && btn.classList.contains('active')) {
-    filtroEstadoActual = "";
-    gestionarClasesFiltro('todas-btn');
-  } else {
-    filtroEstadoActual = estado;
-    gestionarClasesFiltro(claseBoton);
-  }
-  aplicarFiltrosCombinados();
-}
-
-function filtrarPorResponsable(nombre) {
-  filtroResponsableActual = nombre || "Todos";
-  aplicarFiltrosCombinados();
-}
-
-function limpiarTodosLosFiltros() {
-  filtroEstadoActual = "";
-  filtroPrioridadActual = "";
-  filtroVencimientoActual = "";
-  filtroResponsableActual = "Todos";
-  
-  const inputBuscador = document.getElementById('buscador-tarea');
-  if (inputBuscador) inputBuscador.value = "";
-  
-  const selectResponsable = document.getElementById('filtro-responsable');
-  if (selectResponsable) selectResponsable.value = 'Todos';
-  
-  gestionarClasesFiltro('todas-btn');
-  aplicarFiltrosCombinados();
-}
-
-  // --- GUARDAR CLIENTE ---
   function cargarDatosClienteEdicion(idCliente) {
-  if (!idCliente) {
-    limpiarFormCliente();
-    return;
+    if (!idCliente) {
+      limpiarFormCliente();
+      return;
+    }
+
+    const cliente = cacheClientes.find(c => c.id == idCliente);
+    if (!cliente) return;
+
+    document.getElementById('cliente-id').value = cliente.id;
+    document.getElementById('nombre').value = cliente.nombre || "";
+    document.getElementById('dni').value = cliente.dni || "";
+    document.getElementById('domicilio').value = cliente.domicilio || "";
+    document.getElementById('telefono').value = cliente.telefono || "";
+    document.getElementById('email').value = cliente.email || "";
+    document.getElementById('rivadavia').value = cliente.rivadavia || "";
+    document.getElementById('provincia').value = cliente.provincia || "";
+    document.getElementById('fedPatronal').value = cliente.fedPatronal || "";
+    document.getElementById('cliente-observaciones').value = cliente.observaciones || "";
+
+    document.getElementById('titulo-cliente').innerText = "Consulta de Cliente: " + cliente.nombre.toUpperCase();
+
+    alternarEstadoCamposCliente(true);
+
+    document.getElementById('btn-editar-cliente').style.display = 'inline-block';
+    document.getElementById('btn-guardar-cliente').style.display = 'none';
+
+    const tareasAsociadas = cacheTareas.filter(t => t.idCliente == idCliente);
+    renderTabla(tareasAsociadas, 'cuerpo-tabla-cliente-directo');
+    document.getElementById('modulo-tareas-asociadas').style.display = 'block';
+    
+    if (typeof dibujarRelacionados === "function") {
+      dibujarRelacionados(cliente.relaciones || []);
+    }
   }
 
-  // Buscar los datos del cliente en tu caché existente (asumiendo que usas cacheClientes)
-  const cliente = cacheClientes.find(c => c.id == idCliente);
-  if (!cliente) return;
-
-  // 1. Rellenar los campos del formulario
-  document.getElementById('cliente-id').value = cliente.id;
-  document.getElementById('nombre').value = cliente.nombre || "";
-  document.getElementById('dni').value = cliente.dni || "";
-  document.getElementById('domicilio').value = cliente.domicilio || "";
-  document.getElementById('telefono').value = cliente.telefono || "";
-  document.getElementById('email').value = cliente.email || "";
-  document.getElementById('rivadavia').value = cliente.rivadavia || "";
-  document.getElementById('provincia').value = cliente.provincia || "";
-  document.getElementById('fedPatronal').value = cliente.fedPatronal || "";
-  document.getElementById('cliente-observaciones').value = cliente.observaciones || "";
-
-  // Cambiar el título a Modo Consulta
-  document.getElementById('titulo-cliente').innerText = "Consulta de Cliente: " + cliente.nombre.toUpperCase();
-
-  // 2. Bloquear todos los inputs para consulta estricta
-  alternarEstadoCamposCliente(true);
-
-  // 3. Controlar visibilidad de botones
-  document.getElementById('btn-editar-cliente').style.display = 'inline-block';
-  document.getElementById('btn-guardar-cliente').style.display = 'none';
-
-  // 4. Cargar y mostrar la tabla de tareas asociadas abajo
-  // Filtramos de tu cacheTareas global los registros de este cliente
-  const tareasAsociadas = cacheTareas.filter(t => t.idCliente == idCliente);
-  
-  // Usamos tu función renderTabla original pero apuntando al nuevo cuerpo de tabla
-  renderTabla(tareasAsociadas, 'cuerpo-tabla-cliente-directo');
-  document.getElementById('modulo-tareas-asociadas').style.display = 'block';
-  
-  // Procesar relaciones si las tenés implementadas
-  if (typeof dibujarRelacionados === "function") {
-    dibujarRelacionados(cliente.relaciones || []);
-  }
-}
   function uiGuardarCliente() {
     const nombre = document.getElementById('nombre').value.toUpperCase().trim();
     if (!nombre) {
@@ -554,118 +566,58 @@ function limpiarTodosLosFiltros() {
       actualizarListaClientesGlobal(); 
     }).guardarCliente(d);
   }
+
+  function habilitarEdicionCliente() {
+    const nombreCliente = document.getElementById('nombre').value;
+    document.getElementById('titulo-cliente').innerText = "Editando Cliente: " + nombreCliente.toUpperCase();
+    alternarEstadoCamposCliente(false);
+    document.getElementById('btn-editar-cliente').style.display = 'none';
+    document.getElementById('btn-guardar-cliente').style.display = 'inline-block';
+  }
+
+  function alternarEstadoCamposCliente(bloquear) {
+    const campos = [
+      'nombre', 'dni', 'domicilio', 'telefono', 'email', 
+      'rivadavia', 'provincia', 'fedPatronal', 
+      'lista-clientes-vincular', 'select-rol', 'cliente-observaciones'
+    ];
+    campos.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = bloquear;
+    });
+    const btnVincular = document.getElementById('btn-vincular-cliente');
+    if (btnVincular) btnVincular.disabled = bloquear;
+  }
+
+  function limpiarFormCliente() {
+    document.getElementById('form-cliente').reset();
+    document.getElementById('cliente-id').value = "";
+    document.getElementById('buscar-cliente-select').value = "";
+    document.getElementById('contenedor-relacionados').innerHTML = "";
+    document.getElementById('titulo-cliente').innerText = "Gestión de Clientes";
     
-  // --- GUARDAR TAREA (CON USUARIO) ---
-  function uiGuardarTarea() {
-    let idCli = document.getElementById('select-cliente').value;
-    
-    if (!idCli || idCli === "") {
-      const contenedorBloqueado = document.getElementById('cliente-bloqueado');
-      if (contenedorBloqueado.style.display === 'block') {
-        const nombreFijo = document.getElementById('nombre-cliente-fijo').value;
-        const clienteEncontrado = cacheClientes.find(c => c.nombre === nombreFijo);
-        if (clienteEncontrado) idCli = clienteEncontrado.id;
-      }
-    }
+    alternarEstadoCamposCliente(false);
+    document.getElementById('btn-editar-cliente').style.display = 'none';
+    document.getElementById('btn-guardar-cliente').style.display = 'inline-block';
+    document.getElementById('modulo-tareas-asociadas').style.display = 'none';
+    document.getElementById('cuerpo-tabla-cliente-directo').innerHTML = "";
+    relacionadosSeleccionados = [];
+  }
 
-    if(!idCli || idCli === "") {
-      mostrarMensajeExito("Error: No se pudo identificar al cliente");
-      return;
-    }
-
-    const btn = document.getElementById('btn-guardar-tarea');
-    const file = document.getElementById('tarea-adjunto').files[0];
-    btn.disabled = true; 
-    btn.innerText = "Procesando...";
-
-    const enviar = (url) => {
-      const t = {
-  id_fila: document.getElementById('tarea-id-fila').value,
-  idCliente: idCli,
-  tipoTarea: document.getElementById('tarea-tipo').value,
-  compania: document.getElementById('tarea-compania').value,
-  estado: document.getElementById('tarea-estado').value,
-  prioridad: document.getElementById('tarea-prioridad').value,
-  vencimiento: document.getElementById('tarea-vencimiento').value,
-  ramo: document.getElementById('tarea-ramo').value, // <-- NUEVO CAMPO
-  responsable: document.getElementById('tarea-responsable').value,
-  descripcion: document.getElementById('tarea-desc').value,
-  adjunto: url || ""
-};
-
-      google.script.run.withSuccessHandler(r => {
-        mostrarMensajeExito("Tarea guardada con éxito");
-        limpiarFormTarea();
-        // CORRECCIÓN: Al guardar una tarea, busca el botón del historial que ahora tiene la función con el string 'consulta'
-        const btnConsulta = document.querySelector('button[onclick*="consulta"]');
-        mostrarSeccion('consulta', btnConsulta);
-      }).guardarTarea(t, usuarioLogueado); 
-    };
-
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = e => google.script.run.withSuccessHandler(url => enviar(url)).subirArchivoADrive(e.target.result, file.name);
-      reader.readAsDataURL(file);
-    } else {
-      enviar("");
+  function viajarAlCliente(idCliente) {
+    if (!idCliente) return;
+    const btnClientes = document.querySelectorAll('.nav-item')[3];
+    mostrarSeccion('clientes', btnClientes);
+    const selectBuscador = document.getElementById('buscar-cliente-select');
+    if (selectBuscador) {
+      selectBuscador.value = idCliente;
+      cargarDatosClienteEdicion(idCliente);
     }
   }
 
-  function prepararEdicionTarea(json) {
-    const t = JSON.parse(decodeURIComponent(json));
-    // CORRECCIÓN: 'Nueva Tarea' ahora está en la posición [1] del menú
-    const btnTarea = document.querySelectorAll('.nav-item')[1];
-    mostrarSeccion('tareas', btnTarea);
-    document.getElementById('tarea-id-fila').value = t.id_fila;
-    document.getElementById('contenedor-seleccion-cliente').style.display = 'none';
-    document.getElementById('cliente-bloqueado').style.display = 'block';
-    document.getElementById('nombre-cliente-fijo').value = t.clienteNombre;
-    document.getElementById('select-cliente').value = t.idCliente;
-    document.getElementById('tarea-tipo').value = t.tipoTarea || "";
-    document.getElementById('tarea-compania').value = t.compania;
-    document.getElementById('tarea-estado').value = t.estado;
-    document.getElementById('tarea-prioridad').value = t.prioridad;
-    document.getElementById('tarea-responsable').value = t.responsable || "";
-    document.getElementById('tarea-ramo').value = t.ramo || ""; 
-    document.getElementById('tarea-vencimiento').type = 'date';
-    document.getElementById('tarea-vencimiento').value = t.vencimiento;
-    document.getElementById('tarea-desc').value = t.descripcion;
-    document.getElementById('nombre-cliente-tarea-cabecera').innerText = t.clienteNombre.toUpperCase();
-
-    document.getElementById('tarea-desc').value = t.descripcion;
-  document.getElementById('nombre-cliente-tarea-cabecera').innerText = t.clienteNombre.toUpperCase();
-  
-  // <-- AGREGAR ESTA LÍNEA AL FINAL:
-  document.getElementById('btn-eliminar-tarea').style.display = 'inline-block';
-  }
-
-  // --- FILTROS DE SELECTS ---
-  function filtrarSelectClientes(v) {
-    const s = document.getElementById('buscar-cliente-select');
-    s.innerHTML = '<option value="">-- Seleccione un cliente --</option>';
-    cacheClientes.filter(c => c.nombre.toLowerCase().includes(v.toLowerCase())).forEach(c => {
-      let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; s.add(o);
-    });
-  }
-function filtrarSelectTarea(v) {
-    const s = document.getElementById('select-cliente');
-    if (!s) return;
-    s.innerHTML = '<option value="">-- Seleccione --</option>';
-    cacheClientes.filter(c => c.nombre.toLowerCase().includes(v.toLowerCase())).forEach(c => {
-      let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; s.add(o);
-    });
-  }
-  function filtrarSelectHistorial(v) {
-    const s = document.getElementById('select-cliente-historial');
-    s.innerHTML = '<option value="">-- Seleccione un cliente --</option>';
-    const filtrados = cacheClientes.filter(c => c.nombre.toLowerCase().includes(v.toLowerCase()));
-    filtrados.forEach(c => {
-      let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; s.add(o);
-    });
-    s.size = v.length > 0 ? Math.min(filtrados.length + 1, 5) : 1;
-  }
-
-  // --- RELACIONADOS ---
+  // =========================================================================
+  // SECTOR 7: VÍNCULOS Y RELACIONES DE PARENTESCO
+  // =========================================================================
   function agregarRelacionado() {
     const id = document.getElementById('lista-clientes-vincular').value;
     const c = cacheClientes.find(x => x.id == id);
@@ -687,54 +639,71 @@ function filtrarSelectTarea(v) {
 
   function quitarRelacionado(i) { relacionadosSeleccionados.splice(i,1); renderRelacionados(); }
 
-  // --- LIMPIEZA ---
-  function limpiarFormCliente() {
-    document.getElementById('form-cliente').reset();
-    document.getElementById('cliente-id').value = "";
-    document.getElementById('cliente-observaciones').value = "";
-    relacionadosSeleccionados = [];
-    renderRelacionados();
-    document.getElementById('titulo-cliente').innerText = "Gestión de Clientes";
+  // =========================================================================
+  // SECTOR 8: HISTORIAL PARTICULARES DE LÍNEA DE TIEMPO
+  // =========================================================================
+  function uiFiltrarTareasPorCliente(idCliente) {
+    if(!idCliente || idCliente === "") {
+      document.getElementById('tabla-historial-cli').style.display = 'none';
+      return;
+    }
+    const filtradas = cacheTareas.filter(t => t.idCliente == idCliente);
+    renderTabla(filtradas, 'cuerpo-tabla-cliente');
+    document.getElementById('tabla-historial-cli').style.display = 'table';
   }
 
-  function limpiarFormTarea() {
-  document.getElementById('form-tarea').reset();
-  document.getElementById('tarea-id-fila').value = "";
-  
-  // --- CORRECCIÓN: Mantener tipo 'date' y calcular el día posterior (Mañana) ---
-  document.getElementById('tarea-vencimiento').type = 'date';
-  
-  const hoy = new Date();
-  const mañana = new Date(hoy);
-  mañana.setDate(hoy.getDate() + 1); // Suma 1 día a la fecha actual
-  
-  // Formato YYYY-MM-DD necesario para los campos tipo 'date'
-  const año = mañana.getFullYear();
-  const mes = String(mañana.getMonth() + 1).padStart(2, '0');
-  const dia = String(mañana.getDate()).padStart(2, '0');
-  
-  document.getElementById('tarea-vencimiento').value = `${año}-${mes}-${dia}`;
-  // ----------------------------------------------------------------------------
+  // =========================================================================
+  // SECTOR 9: FILTRADO DE CONTROLES DROP-DOWN (SELECTS) Y COMPLEMENTOS
+  // =========================================================================
+  function activarEfectoFiltro(claseBotonActivo) {
+    document.querySelectorAll('.filter-buttons .btn-filter').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    if (claseBotonActivo) {
+      const btn = document.querySelector(`.filter-buttons .${claseBotonActivo}`);
+      if (btn) btn.classList.add('active');
+    }
+  }
 
-  document.getElementById('contenedor-seleccion-cliente').style.display = 'block';
-  document.getElementById('cliente-bloqueado').style.display = 'none';
-  document.getElementById('nombre-cliente-tarea-cabecera').innerText = "";
-  document.getElementById('btn-guardar-tarea').disabled = false;
-  document.getElementById('btn-guardar-tarea').innerText = "Guardar Tarea";
-  document.getElementById('btn-eliminar-tarea').style.display = 'none';
-}
+  function gestionarClasesFiltro(claseBotonActivo) {
+    const botones = document.querySelectorAll('.btn-filter');
+    botones.forEach(btn => btn.classList.remove('active'));
+    if (claseBotonActivo && claseBotonActivo !== 'todas-btn') {
+      const btnActivo = document.querySelector(`.${claseBotonActivo}`);
+      if (btnActivo) btnActivo.classList.add('active');
+    } else {
+      const btnTodas = document.querySelector('.todas-btn');
+      if (btnTodas) btnTodas.classList.add('active');
+    }
+  }
 
-  function actualizarNombreCabeceraTarea() {
+  function filtrarSelectClientes(v) {
+    const s = document.getElementById('buscar-cliente-select');
+    s.innerHTML = '<option value="">-- Seleccione un cliente --</option>';
+    cacheClientes.filter(c => c.nombre.toLowerCase().includes(v.toLowerCase())).forEach(c => {
+      let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; s.add(o);
+    });
+  }
+
+  function filtrarSelectTarea(v) {
     const s = document.getElementById('select-cliente');
-    document.getElementById('nombre-cliente-tarea-cabecera').innerText = s.selectedIndex > 0 ? s.options[s.selectedIndex].text.toUpperCase() : "";
+    if (!s) return;
+    s.innerHTML = '<option value="">-- Seleccione --</option>';
+    cacheClientes.filter(c => c.nombre.toLowerCase().includes(v.toLowerCase())).forEach(c => {
+      let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; s.add(o);
+    });
   }
 
-  function filtrarPorEstado(estado) {
-    const filtradas = cacheTareas.filter(t => t.estado === estado);
-    renderTabla(filtradas, 'cuerpo-tabla');
+  function filtrarSelectHistorial(v) {
+    const s = document.getElementById('select-cliente-historial');
+    s.innerHTML = '<option value="">-- Seleccione un cliente --</option>';
+    const filtrados = cacheClientes.filter(c => c.nombre.toLowerCase().includes(v.toLowerCase()));
+    filtrados.forEach(c => {
+      let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; s.add(o);
+    });
+    s.size = v.length > 0 ? Math.min(filtrados.length + 1, 5) : 1;
   }
 
-  // --- TOAST NOTIFICATION ---
   function mostrarMensajeExito(texto) {
     const toast = document.createElement('div');
     toast.className = 'toast-notificacion';
@@ -747,100 +716,4 @@ function filtrarSelectTarea(v) {
       setTimeout(() => toast.remove(), 500);
     }, 3000);
   }
-
-  function filtrarPorResponsable(nombre) {
-    if (!nombre || nombre === "") {
-      renderTabla(cacheTareas, 'cuerpo-tabla');
-      return;
-    }
-    const filtradas = cacheTareas.filter(t => t.responsable && t.responsable === nombre);
-    renderTabla(filtradas, 'cuerpo-tabla');
-  }
-
-  function viajarAlCliente(idCliente) {
-  if (!idCliente) return;
-
-  // CORRECCIÓN: 'Clientes' ahora es el cuarto botón del menú (índice [3])
-  const btnClientes = document.querySelectorAll('.nav-item')[3];
-  
-  mostrarSeccion('clientes', btnClientes);
-
-  const selectBuscador = document.getElementById('buscar-cliente-select');
-  if (selectBuscador) {
-    selectBuscador.value = idCliente;
-    cargarDatosClienteEdicion(idCliente);
-  }
-}
-// Función para habilitar la edición de los campos
-function habilitarEdicionCliente() {
-  const nombreCliente = document.getElementById('nombre').value;
-  document.getElementById('titulo-cliente').innerText = "Editando Cliente: " + nombreCliente.toUpperCase();
-  
-  // Desbloqueamos los campos
-  alternarEstadoCamposCliente(false);
-  
-  // Alternamos los botones correspondientes
-  document.getElementById('btn-editar-cliente').style.display = 'none';
-  document.getElementById('btn-guardar-cliente').style.display = 'inline-block';
-}
-
-// Función auxiliar para bloquear o desbloquear el formulario
-function alternarEstadoCamposCliente(bloquear) {
-  const campos = [
-    'nombre', 'dni', 'domicilio', 'telefono', 'email', 
-    'rivadavia', 'provincia', 'fedPatronal', 
-    'lista-clientes-vincular', 'select-rol', 'cliente-observaciones'
-  ];
-  
-  campos.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.disabled = bloquear;
-  });
-
-  const btnVincular = document.getElementById('btn-vincular-cliente');
-  if (btnVincular) btnVincular.disabled = bloquear;
-}
-
-// Modificación a tu función de limpiar para restablecer los estados por defecto
-function limpiarFormCliente() {
-  document.getElementById('form-cliente').reset();
-  document.getElementById('cliente-id').value = "";
-  document.getElementById('buscar-cliente-select').value = "";
-  document.getElementById('contenedor-relacionados').innerHTML = "";
-  
-  document.getElementById('titulo-cliente').innerText = "Gestión de Clientes";
-  
-  // Al ser un cliente nuevo, sí permitimos escribir desde el inicio
-  alternarEstadoCamposCliente(false);
-  
-  // Mostramos guardar y ocultamos editar
-  document.getElementById('btn-editar-cliente').style.display = 'none';
-  document.getElementById('btn-guardar-cliente').style.display = 'inline-block';
-  
-  // Ocultamos la tabla de tareas inferiores porque no hay cliente seleccionado
-  document.getElementById('modulo-tareas-asociadas').style.display = 'none';
-  document.getElementById('cuerpo-tabla-cliente-directo').innerHTML = "";
-}
-function uiEliminarTarea() {
-  const idFila = document.getElementById('tarea-id-fila').value;
-  if (!idFila) return;
-
-  // Ventana de confirmación nativa del navegador
-  const confirmar = confirm("Confirme si desea eliminar esta tarea");
-  
-  if (confirmar) {
-    const btnEliminar = document.getElementById('btn-eliminar-tarea');
-    btnEliminar.disabled = true;
-    btnEliminar.innerText = "Eliminando...";
-
-    google.script.run.withSuccessHandler(r => {
-      mostrarMensajeExito("Tarea eliminada con éxito");
-      limpiarFormTarea();
-      
-      // Redirecciona y refresca el historial de tareas
-      const btnConsulta = document.querySelector('button[onclick*="consulta"]');
-      mostrarSeccion('consulta', btnConsulta);
-    }).eliminarTareaEnServidor(idFila);
-  }
-}
 </script>
