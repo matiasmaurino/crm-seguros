@@ -1,10 +1,15 @@
+// --- MAPEO DE RESPONSABLE -> CALENDARIO ---
+const CALENDARIOS_POR_RESPONSABLE = {
+  "Matias": "0q14of40e34nhec1lnjh2kami8@group.calendar.google.com"
+};
+const CALENDARIO_POR_DEFECTO = "matiasmaurino@gmail.com"; // Mariana, Mauro, Pilar y sin asignar caen acá
 
 function doGet() {
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle('CRM')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL); // <-- ACÁ VA LA LÍNEA
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function include(filename) {
@@ -22,29 +27,29 @@ function obtenerListaClientes() {
   return data.slice(1).map(r => {
     let etiquetas = [];
     
-    // Revisamos cada columna por separado para armar las etiquetas visuales
-    if (r[6]) etiquetas.push("RIV");      // Columna G: Rivadavia
-    if (r[7]) etiquetas.push("PS");       // Columna H: Provincia Seguros
-    if (r[8]) etiquetas.push("FP");       // Columna I: Federación Patronal
+    if (r[6]) etiquetas.push("RIV");
+    if (r[7]) etiquetas.push("PS");
+    if (r[8]) etiquetas.push("FP");
 
     let etiquetaFinal = etiquetas.length > 0 ? " [" + etiquetas.join(" / ") + "]" : "";
 
     return {
-      id: r[0],                            // Columna A
-      nombre: r[1] + etiquetaFinal,        // Nombre con corchetes para buscador
-      nombrePuro: r[1],                    // Columna B (Nombre original)
-      dni: r[2],                           // <--- CORREGIDO: Cambiado 'cuit' por 'dni' para alinearse con Scripts.html
-      domicilio: r[3],                     // Columna D
-      telefono: r[4],                      // Columna E
-      email: r[5],                         // Columna F
-      rivadavia: r[6],                     // Columna G
-      provincia: r[7],                     // Columna H
-      fedPatronal: r[8],                   // Columna I
-      relacionados: r[9],                  // Columna J
-      observaciones: r[10]                 // Columna K
+      id: r[0],
+      nombre: r[1] + etiquetaFinal,
+      nombrePuro: r[1],
+      dni: r[2],
+      domicilio: r[3],
+      telefono: r[4],
+      email: r[5],
+      rivadavia: r[6],
+      provincia: r[7],
+      fedPatronal: r[8],
+      relacionados: r[9],
+      observaciones: r[10]
     };
   });
 }
+
 function guardarCliente(datos) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const hoja = ss.getSheetByName("CLIENTES");
@@ -81,7 +86,6 @@ function guardarCliente(datos) {
     relacionadosJSON
   ]]);
 
-  // Sincronización de relacionados (vínculo doble)
   if (datos.relacionados && datos.relacionados.length > 0) {
     const todos = hoja.getDataRange().getValues();
     datos.relacionados.forEach(rel => {
@@ -141,8 +145,8 @@ function obtenerTareas() {
       prioridad: r[9],   
       adjunto: r[10],
       responsable: r[13],
-      ramo: r[14] || "",    // <-- NUEVO: Lee la columna O (índice 14)
-      usuario: r[12] || "-" // Columna M
+      ramo: r[14] || "",
+      usuario: r[12] || "-"
     };
   }).filter(t => t.compania !== "").reverse(); 
 }
@@ -154,66 +158,92 @@ function guardarTarea(t, usuarioActivo) {
   let idTareaActual = null;
 
   if (t.id_fila) {
-    // Si estamos EDITANDO una fila existente, no tocamos el ID, mantenemos el que ya tiene la fila
-    // El ID real de la tarea está en la columna B (índice 1 de la fila)
-    idTareaActual = data[Number(t.id_fila) - 1][1];
-    
-    // CORRECCIÓN: Volvemos a expandir el rango a 13 columnas (Columna C hasta la O)
-    // Agregamos los dos campos vacíos "" originales correspondientes a las columnas H e I para que mantenga la estructura de la base de datos
-    hoja.getRange(Number(t.id_fila), 3, 1, 13).setValues([[
+    const filaActual = Number(t.id_fila);
+    const filaAnteriorValores = data[filaActual - 1];
+    idTareaActual = filaAnteriorValores[1];
+
+    const vencimientoAnterior = filaAnteriorValores[5];
+    const idEventoAnterior = (filaAnteriorValores[8] || "").toString().trim(); // columna I
+    const nuevoVencimiento = t.vencimiento ? new Date(t.vencimiento + "T12:00:00") : "";
+
+    // Detectamos si cambió la fecha de vencimiento
+    let vencimientoCambio = false;
+    const vencAnteriorStr = (vencimientoAnterior instanceof Date) ? vencimientoAnterior.toDateString() : "";
+    const vencNuevoStr = (nuevoVencimiento instanceof Date) ? nuevoVencimiento.toDateString() : "";
+    if (vencAnteriorStr !== vencNuevoStr) vencimientoCambio = true;
+
+    hoja.getRange(filaActual, 3, 1, 13).setValues([[
       t.compania,                    // C
       t.tipoTarea,                   // D
       t.descripcion,                 // E
-      t.vencimiento ? new Date(t.vencimiento + "T12:00:00") : "", // F
+      nuevoVencimiento,              // F
       t.estado,                      // G
-      "",                            // H (Vacío estructural)
-      "",                            // I (Vacío estructural)
+      "",                            // H (vacío estructural)
+      vencimientoCambio ? "" : idEventoAnterior, // I: conservamos el ID si la fecha no cambió
       t.prioridad,                   // J
       t.adjunto,                     // K
       t.idCliente,                   // L
-      usuarioActivo || "Sistema",    // M: Usuario Logueado
-      t.responsable || "",           // N: Responsable seleccionado
-      t.ramo || ""                   // O: Ramo seleccionado
+      usuarioActivo || "Sistema",    // M
+      t.responsable || "",           // N
+      t.ramo || ""                   // O
     ]]);
-  } else {
-    // Si es una TAREA NUEVA, calculamos el ID de forma correlativa
-    idTareaActual = data.length > 1 ? Number(data[data.length - 1][1]) + 1 : 1;
-    
-    if (isNaN(idTareaActual)) {
-      idTareaActual = 1;
+
+    // Si cambió el vencimiento, borramos el evento viejo y agendamos uno nuevo
+    if (vencimientoCambio) {
+      if (idEventoAnterior !== "") {
+        try {
+          const cal = CalendarApp.getCalendarById(CALENDARIO_POR_DEFECTO);
+          const eventoViejo = cal ? cal.getEventById(idEventoAnterior) : null;
+          if (eventoViejo) eventoViejo.deleteEvent();
+        } catch (e) {
+          console.log("No se pudo borrar el evento anterior: " + e.toString());
+        }
+      }
+      if (t.vencimiento) {
+        try {
+          agendarTareaEnCalendar(filaActual);
+        } catch (e) {
+          console.log("Error al reagendar en calendario: " + e.toString());
+        }
+      }
     }
 
-    // Preparamos los valores para la fila nueva (Columna A a O)
+  } else {
+    // TAREA NUEVA
+    idTareaActual = data.length > 1 ? Number(data[data.length - 1][1]) + 1 : 1;
+    if (isNaN(idTareaActual)) idTareaActual = 1;
+
     const filaValores = [
-      new Date(),     // A: Fecha Creación
-      idTareaActual,  // B: ID Tarea
-      t.compania,     // C
-      t.tipoTarea,    // D
-      t.descripcion,  // E
-      t.vencimiento ? new Date(t.vencimiento + "T12:00:00") : "", // F
-      t.estado,      // G
-      "",            // H
-      "",            // I
-      t.prioridad,   // J
-      t.adjunto,     // K
-      t.idCliente,   // L
-      usuarioActivo || "Sistema", // M: Usuario Logueado
-      t.responsable || "",         // N: Responsable seleccionado
-      t.ramo || ""                // O: Ramo seleccionado
+      new Date(),
+      idTareaActual,
+      t.compania,
+      t.tipoTarea,
+      t.descripcion,
+      t.vencimiento ? new Date(t.vencimiento + "T12:00:00") : "",
+      t.estado,
+      "",
+      "",
+      t.prioridad,
+      t.adjunto,
+      t.idCliente,
+      usuarioActivo || "Sistema",
+      t.responsable || "",
+      t.ramo || ""
     ];
 
     hoja.appendRow(filaValores);
     
-    // --- LÓGICA DEL CALENDARIO ---
     if (t.vencimiento) {
       try {
-        agendarTareaEnCalendar(t.idCliente, t.tipoTarea, t.vencimiento);
+        const nuevaFila = hoja.getLastRow();
+        agendarTareaEnCalendar(nuevaFila);
       } catch (e) {
         console.log("Error al crear evento en calendario: " + e.toString());
       }
     }
   }
 }
+
 // --- ARCHIVOS Y LOGIN ---
 
 function subirArchivoADrive(base64, nombre) {
@@ -237,7 +267,6 @@ function validarLogin(usuario, password) {
     
     const datos = hoja.getDataRange().getValues();
     
-    // Comparamos usuario y contraseña (limpiando espacios)
     for (let i = 1; i < datos.length; i++) {
       let userDb = datos[i][0].toString().trim();
       let passDb = datos[i][1].toString().trim();
@@ -253,45 +282,64 @@ function validarLogin(usuario, password) {
 }
 
 /**
- * CREA EL EVENTO EN TU CALENDARIO ESPECÍFICO (CORREGIDO)
+ * CREA EL EVENTO EN EL CALENDARIO QUE CORRESPONDE AL RESPONSABLE
+ * Recibe el NÚMERO DE FILA de la hoja TAREAS y lee todo desde ahí.
  */
-function agendarTareaEnCalendar(idCliente, nombreTarea, fechaVencimiento) {
+function agendarTareaEnCalendar(numeroFilaReal) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const hoja = ss.getSheetByName("TAREAS");
+    const fila = hoja.getRange(numeroFilaReal, 1, 1, 15).getValues()[0];
+
+    const idCliente = fila[11];          // Columna L
+    const nombreTarea = fila[3];         // Columna D
+    const fechaVencimientoRaw = fila[5]; // Columna F
+    const responsable = (fila[13] || "").toString().trim(); // Columna N
+
+    if (!fechaVencimientoRaw) {
+      Logger.log(`Renglón ${numeroFilaReal} no tiene fecha de vencimiento, se omite.`);
+      return;
+    }
+
     const hojaClientes = ss.getSheetByName("CLIENTES");
     const datosClientes = hojaClientes.getDataRange().getValues();
     let nombre = "Cliente desconocido";
     let telefono = "No cargado";
     let email = "";
 
-    // 1. Buscar los datos del cliente por su ID
     for (let i = 1; i < datosClientes.length; i++) {
       if (datosClientes[i][0].toString() === idCliente.toString()) { 
-        nombre = datosClientes[i][1];   // Columna B: Nombre
-        telefono = datosClientes[i][4]; // Columna E: Teléfono
-        email = datosClientes[i][5];    // Columna F: Email
+        nombre = datosClientes[i][1];
+        telefono = datosClientes[i][4];
+        email = datosClientes[i][5];
         break;
       }
     }
 
-    // --- FORZAMOS TU CALENDARIO PRINCIPAL ---
-    const idCalendarioFijo = "matiasmaurino@gmail.com";
-    const calendario = CalendarApp.getCalendarById(idCalendarioFijo);
-    
+    // Elegimos el calendario según el responsable
+    const idCalendarioDestino = CALENDARIOS_POR_RESPONSABLE[responsable] || CALENDARIO_POR_DEFECTO;
+    const calendario = CalendarApp.getCalendarById(idCalendarioDestino);
+
     if (!calendario) {
-      console.log("No se pudo abrir el calendario: " + idCalendarioFijo + ". Revisar permisos.");
+      Logger.log(`No se pudo abrir el calendario para "${responsable}" (${idCalendarioDestino}). Revisar permisos o ID.`);
       return;
     }
 
-    const titulo = "Tarea: " + nombreTarea + " - " + nombre;
+    const titulo = "Tarea: " + nombreTarea + " - " + nombre + (responsable ? " (" + responsable + ")" : "");
     
-    // 2. Configurar horario (9:00 AM)
-    const fechaEvento = new Date(fechaVencimiento + "T09:00:00");
-    const finEvento = new Date(fechaEvento.getTime() + 60 * 60 * 1000); // 1 hora de duración
+    let fechaEvento;
+    if (fechaVencimientoRaw instanceof Date) {
+      fechaEvento = new Date(fechaVencimientoRaw);
+      fechaEvento.setHours(9, 0, 0, 0);
+    } else {
+      fechaEvento = new Date(fechaVencimientoRaw + "T09:00:00");
+    }
+    const finEvento = new Date(fechaEvento.getTime() + 60 * 60 * 1000);
 
     const descripcion = "ID Cliente: " + idCliente +
                         "\nNombre: " + nombre + 
                         "\nTarea: " + nombreTarea + 
+                        "\nResponsable: " + (responsable || "Sin asignar") +
                         "\nTeléfono: " + telefono + 
                         "\nEmail: " + email;
 
@@ -299,14 +347,15 @@ function agendarTareaEnCalendar(idCliente, nombreTarea, fechaVencimiento) {
       description: descripcion
     });
 
-    // 3. Notificación por correo 1 día antes
     evento.addEmailReminder(1440);
+
+    hoja.getRange(numeroFilaReal, 9).setValue(evento.getId());
     
-    console.log("Evento creado con éxito en " + idCalendarioFijo);
+    Logger.log(`Evento creado para el renglón ${numeroFilaReal} en calendario de "${responsable || "por defecto"}"`);
     return evento.getId();
     
   } catch (e) {
-    console.log("Error interno en agendarTareaEnCalendar: " + e.toString());
+    Logger.log("Error interno en agendarTareaEnCalendar (fila " + numeroFilaReal + "): " + e.toString());
   }
 }
 
@@ -315,9 +364,9 @@ function obtenerResponsables() {
   const hoja = ss.getSheetByName("LOGIN");
   if (!hoja) return [];
   const datos = hoja.getDataRange().getValues();
-  // Retorna nombres de columna C (índice 2), sin el encabezado
   return datos.slice(1).map(fila => fila[2]).filter(nombre => nombre);
 }
+
 function obtenerRamosLista() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -325,9 +374,8 @@ function obtenerRamosLista() {
     if (!hoja) return [];
     
     const data = hoja.getDataRange().getValues();
-    if (data.length <= 1) return []; // Si solo está el encabezado o está vacía
+    if (data.length <= 1) return [];
     
-    // Mapea la columna A (índice 0), omitiendo la fila del encabezado y limpiando vacíos
     return data.slice(1).map(fila => fila[0].toString().trim()).filter(ramo => ramo);
   } catch(e) {
     console.log("Error al obtener ramos: " + e.toString());
@@ -341,7 +389,6 @@ function eliminarTareaEnServidor(idFila) {
   
   const filaNumero = Number(idFila);
   
-  // Validación de seguridad por si acaso
   if (filaNumero > 1 && filaNumero <= hoja.getLastRow()) {
     hoja.deleteRow(filaNumero);
     return { exito: true };
@@ -349,44 +396,189 @@ function eliminarTareaEnServidor(idFila) {
     throw new Error("Número de fila inválido para eliminar.");
   }
 }
+
 /**
- * Función automatizada corregida según el orden real de tus columnas en Google Sheets.
- */
-/**
- * Función automatizada (para ejecutar 1 vez al día)
- * Revisa todos los renglones de la hoja TAREAS y, si no están agendados,
- * reutiliza tu función nativa 'agendarTareaEnCalendar' para procesarlos.
+ * Función automatizada (trigger horario)
+ * Recorre TAREAS y agenda las que no tengan ID de evento en columna I
+ * y no estén Terminado.
  */
 function sincronizarTareasConCalendario() {
+  const TIEMPO_MAXIMO_MS = 4.5 * 60 * 1000;
+  const inicio = Date.now();
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const hoja = ss.getSheetByName("TAREAS");
   if (!hoja) return;
 
   const ultimaFila = hoja.getLastRow();
-  if (ultimaFila < 2) return; // No hay tareas creadas
+  if (ultimaFila < 2) return;
 
-  // Traemos los valores de la columna de control de IDs de Calendar.
-  // Según tu estructura actual, la columna con el ID de Calendar es la Columna I (9).
-  const rangoIds = hoja.getRange(2, 9, ultimaFila - 1, 1);
-  const valoresIds = rangoIds.getValues();
+  const valoresEstado = hoja.getRange(2, 7, ultimaFila - 1, 1).getValues();
+  const valoresIds = hoja.getRange(2, 9, ultimaFila - 1, 1).getValues();
 
-  // Recorremos renglón por renglón
+  let procesadas = 0;
+
   for (let i = 0; i < valoresIds.length; i++) {
-    const idExistente = valoresIds[i][0];
-    const numeroFilaReal = i + 2; // +2 porque el arreglo empieza en 0 y saltamos el encabezado
+    if (Date.now() - inicio > TIEMPO_MAXIMO_MS) {
+      Logger.log(`Corte por tiempo. Procesadas ${procesadas} filas en esta corrida.`);
+      break;
+    }
 
-    // Si el renglón NO tiene un ID de evento en la columna I, lo procesamos
-    if (!idExistente || idExistente.toString().trim() === "") {
-      try {
-        Logger.log(`Procesando automáticamente el renglón ${numeroFilaReal}...`);
-        
-        // Ejecuta TU función original pasándole el número de fila exacto
-        agendarTareaEnCalendar(numeroFilaReal);
-        
-        Logger.log(`Renglón ${numeroFilaReal} sincronizado con éxito.`);
-      } catch (error) {
-        Logger.log(`Error al procesar el renglón ${numeroFilaReal}: ${error.toString()}`);
-      }
+    const idExistente = valoresIds[i][0];
+    const estado = (valoresEstado[i][0] || "").toString().trim();
+    const numeroFilaReal = i + 2;
+
+    if (idExistente && idExistente.toString().trim() !== "") continue;
+    if (estado === "Terminado") continue;
+
+    try {
+      agendarTareaEnCalendar(numeroFilaReal);
+      procesadas++;
+    } catch (error) {
+      Logger.log(`Error al procesar el renglón ${numeroFilaReal}: ${error.toString()}`);
     }
   }
+
+  Logger.log(`Sincronización finalizada. Total procesadas: ${procesadas}`);
+}
+
+/**
+ * Función diaria: borra eventos de Calendar de tareas Terminado
+ * y limpia la columna I.
+ */
+function borrarEventosDeTareasTerminadas() {
+  const TIEMPO_MAXIMO_MS = 4.5 * 60 * 1000;
+  const inicio = Date.now();
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName("TAREAS");
+  if (!hoja) return;
+
+  const ultimaFila = hoja.getLastRow();
+  if (ultimaFila < 2) return;
+
+  const datos = hoja.getRange(2, 1, ultimaFila - 1, 15).getValues();
+  const clientes = obtenerListaClientes();
+
+  // Revisamos el calendario por defecto + todos los calendarios de responsables
+  const idsCalendarios = [CALENDARIO_POR_DEFECTO, ...Object.values(CALENDARIOS_POR_RESPONSABLE)];
+  const calendariosUnicos = [...new Set(idsCalendarios)];
+  const calendarios = calendariosUnicos.map(id => CalendarApp.getCalendarById(id)).filter(c => c);
+
+  let borrados = 0;
+  let noEncontrados = 0;
+
+  for (let i = 0; i < datos.length; i++) {
+    if (Date.now() - inicio > TIEMPO_MAXIMO_MS) {
+      Logger.log(`Corte por tiempo. Borrados ${borrados} en esta corrida. Volvé a ejecutar para seguir con el resto.`);
+      break;
+    }
+
+    const numeroFilaReal = i + 2;
+    const estado = (datos[i][6] || "").toString().trim();       // G
+    const idEvento = (datos[i][8] || "").toString().trim();      // I
+    const idCliente = datos[i][11];                              // L
+    const tipoTarea = datos[i][3];                                // D
+    const responsable = (datos[i][13] || "").toString().trim();  // N
+    const vencimientoRaw = datos[i][5];                           // F
+
+    if (estado !== "Terminado") continue;
+
+    let eventoBorrado = false;
+
+    // 1. Intento directo con el ID guardado, buscando en cualquier calendario accesible
+    if (idEvento !== "") {
+      try {
+        const evento = CalendarApp.getEventById(idEvento);
+        if (evento) {
+          evento.deleteEvent();
+          eventoBorrado = true;
+        }
+      } catch (error) {
+        Logger.log(`Error al borrar por ID en renglón ${numeroFilaReal}: ${error.toString()}`);
+      }
+      hoja.getRange(numeroFilaReal, 9).setValue("");
+    }
+
+    // 2. Fallback: si no había ID o no se encontró el evento, buscamos por fecha + título
+    if (!eventoBorrado && vencimientoRaw instanceof Date && !isNaN(vencimientoRaw)) {
+      const cliente = clientes.find(c => c.id == idCliente);
+      const nombreCliente = cliente ? cliente.nombrePuro : null;
+
+      if (nombreCliente) {
+        const tituloConResponsable = "Tarea: " + tipoTarea + " - " + nombreCliente + (responsable ? " (" + responsable + ")" : "");
+        const tituloSinResponsable = "Tarea: " + tipoTarea + " - " + nombreCliente;
+
+        const inicioDia = new Date(vencimientoRaw);
+        inicioDia.setHours(0, 0, 0, 0);
+        const finDia = new Date(vencimientoRaw);
+        finDia.setHours(23, 59, 59, 999);
+
+        for (const cal of calendarios) {
+          const eventosDelDia = cal.getEvents(inicioDia, finDia);
+          eventosDelDia.forEach(ev => {
+            const titulo = ev.getTitle();
+            if (titulo === tituloConResponsable || titulo === tituloSinResponsable) {
+              ev.deleteEvent();
+              eventoBorrado = true;
+            }
+          });
+        }
+      }
+    }
+
+    if (eventoBorrado) borrados++;
+    else noEncontrados++;
+  }
+
+  Logger.log(`Finalizado. Total eventos borrados: ${borrados} | No encontrados/sin match: ${noEncontrados}`);
+}
+
+/**
+ * MIGRACIÓN (ejecutar manualmente 1 sola vez, o varias veces si corta por tiempo)
+ * Mueve al calendario correcto las tareas de responsables que ya tienen evento
+ * creado en el calendario por defecto. Con el mapa actual, solo migra las de Matias.
+ */
+function migrarEventosARepsonsables() {
+  const TIEMPO_MAXIMO_MS = 4.5 * 60 * 1000;
+  const inicio = Date.now();
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName("TAREAS");
+  const ultimaFila = hoja.getLastRow();
+  if (ultimaFila < 2) return;
+
+  const datos = hoja.getRange(2, 1, ultimaFila - 1, 15).getValues();
+  const calViejo = CalendarApp.getCalendarById(CALENDARIO_POR_DEFECTO);
+
+  let migradas = 0;
+
+  for (let i = 0; i < datos.length; i++) {
+    if (Date.now() - inicio > TIEMPO_MAXIMO_MS) {
+      Logger.log(`Corte por tiempo. Migradas ${migradas} en esta corrida. Volvé a ejecutar para seguir.`);
+      break;
+    }
+
+    const numeroFilaReal = i + 2;
+    const estado = (datos[i][6] || "").toString().trim();       // G
+    const idEventoViejo = (datos[i][8] || "").toString().trim(); // I
+    const responsable = (datos[i][13] || "").toString().trim();  // N
+
+    if (estado === "Terminado") continue;
+    if (idEventoViejo === "") continue;
+    if (!CALENDARIOS_POR_RESPONSABLE[responsable]) continue; // no tiene calendario propio, se queda como está
+
+    try {
+      const eventoViejo = calViejo ? calViejo.getEventById(idEventoViejo) : null;
+      if (eventoViejo) eventoViejo.deleteEvent();
+
+      agendarTareaEnCalendar(numeroFilaReal);
+      migradas++;
+      Logger.log(`Renglón ${numeroFilaReal} migrado al calendario de "${responsable}"`);
+    } catch (error) {
+      Logger.log(`Error migrando renglón ${numeroFilaReal}: ${error.toString()}`);
+    }
+  }
+
+  Logger.log(`Migración finalizada. Total migradas: ${migradas}`);
 }
