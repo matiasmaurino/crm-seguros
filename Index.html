@@ -28,6 +28,7 @@
           <button onclick="mostrarSeccion('tareas', this)" class="nav-item">Nueva Tarea</button>
           <button onclick="mostrarSeccion('historial-cliente', this)" class="nav-item" style="display: none;">Historial Cliente</button>
           <button onclick="mostrarSeccion('clientes', this)" class="nav-item">Clientes</button>
+          <button onclick="mostrarSeccion('renovaciones', this)" class="nav-item">Renovaciones</button>
         </nav>
       </header>
 
@@ -45,7 +46,7 @@
   </button>
 
   <button onclick="filtrarVencidas()" class="btn-filter vencida-btn" style="background-color: var(--danger); color: white;">Vencidas</button>
-  <button onclick="filtrarProximas(3)" class="btn-filter proxima-btn" style="background-color: var(--warning); color: white;">Vencen en 3 días</button>
+  <button onclick="filtrarProximas(7)" class="btn-filter proxima-btn" style="background-color: var(--warning); color: white;">Vence en 1 Semana</button>
   <button onclick="filtrarUrgentes()" class="btn-filter urgente-btn" style="background-color: black; color: white;">Urgentes</button>
   <button onclick="filtrarPorEstadoPersonalizado('Sin leer', 'sinleer-btn')" class="btn-filter sinleer-btn" style="background-color: var(--secondary); color: white;">Sin Leer</button>
   <button onclick="filtrarPorEstadoPersonalizado('En proceso', 'enproceso-btn')" class="btn-filter enproceso-btn" style="background-color: var(--primary); color: white;">En Proceso</button>
@@ -144,6 +145,29 @@
               </div>
               <div id="contenedor-relacionados" style="margin-top:15px; display:flex; flex-wrap:wrap; gap:8px;"></div>
 
+              <div class="section-title">Renovaciones de Pólizas</div>
+              <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:8px; flex-wrap: wrap;">
+                <div class="field-group" style="flex:1; min-width:160px; margin-bottom:0;">
+                  <label>Fecha de Renovación</label>
+                  <input type="date" id="renovacion-fecha" disabled>
+                  <small style="color:var(--secondary); font-size:11px;">El año no importa, se repite cada año</small>
+                </div>
+                <div class="field-group" style="flex:1; min-width:160px; margin-bottom:0;">
+                  <label>Ramo</label>
+                  <select id="renovacion-ramo" style="width: 100%; height: 38px;" disabled>
+                    <option value="">-- Seleccione --</option>
+                  </select>
+                </div>
+                <div class="field-group" style="flex:2; min-width:200px; margin-bottom:0;">
+                  <label>Comentario</label>
+                  <input type="text" id="renovacion-comentario" placeholder="Ej: Póliza automotor N° 12345" disabled>
+                </div>
+                <button type="button" id="btn-agregar-renovacion" class="btn-principal" style="height: 38px; padding: 0 20px;" onclick="agregarRenovacionCliente()" disabled>
+                  Agregar
+                </button>
+              </div>
+              <div id="lista-renovaciones-cliente" style="margin-bottom:20px; display:flex; flex-direction:column; gap:6px;"></div>
+
               <div class="section-title">Observaciones</div>
               <div class="field-group">
                 <label>Notas adicionales del cliente</label>
@@ -152,6 +176,7 @@
               
               <div class="form-actions">
                 <button type="button" class="btn-secondary" onclick="limpiarFormCliente()">Nuevo / Limpiar</button>
+                <button type="button" class="btn-filter" style="background-color:#ffca28; color:#3a2f00; font-weight:600;" onclick="volverAHistorial()">Volver</button>
                 <button type="button" id="btn-editar-cliente" class="btn-filter" style="background-color: var(--primary); color: white; display: none;" onclick="habilitarEdicionCliente()">Editar</button>
                 <button type="button" id="btn-guardar-cliente" class="btn-principal" onclick="uiGuardarCliente()" style="display: none;">Guardar Cliente</button>
               </div>
@@ -276,6 +301,7 @@
   <button type="button" id="btn-eliminar-tarea" class="btn-filter" style="background-color: #fca5a5; color: #7f1d1d; display: none;" onclick="uiEliminarTarea()">
     Eliminar Tarea
   </button>
+                <button type="button" class="btn-filter" style="background-color:#ffca28; color:#3a2f00; font-weight:600;" onclick="volverAHistorial()">Volver</button>
                 <button type="button" id="btn-guardar-tarea" class="btn-principal" onclick="uiGuardarTarea()">Guardar Tarea</button>
               </div>
             </form>
@@ -298,6 +324,29 @@
                   <tr><th></th><th>Creación</th><th>Vencim.</th><th>Cliente</th><th>Cía</th><th>Tarea</th><th>Ramo</th><th>Descripción</th></tr>
                 </thead>
                 <tbody id="cuerpo-tabla-cliente"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="renovaciones" class="modulo">
+            <div class="table-controls" style="flex-direction: column; align-items: flex-start;">
+              <input type="text" id="buscador-renovacion" placeholder="Buscar Renovaciones..." onkeyup="filtrarTablaRenovaciones()" style="width: 100%;">
+
+              <div class="filter-buttons filtro-renovaciones" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <button onclick="limpiarFiltrosRenovacion()" class="btn-limpiar" style="background-color: #6c757d; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                  Limpiar Filtros
+                </button>
+                <button onclick="filtrarVencidasRenovacion()" class="btn-filter vencida-ren-btn" style="background-color: var(--danger); color: white;">Vencidas</button>
+                <button onclick="filtrarProximasRenovacion(7)" class="btn-filter proxima-ren-btn" style="background-color: var(--warning); color: white;">Vence en 1 Semana</button>
+              </div>
+            </div>
+
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr><th></th><th>Creación</th><th>Próx. Renovación</th><th>Cliente</th><th>Ramo</th><th>Comentario</th></tr>
+                </thead>
+                <tbody id="cuerpo-tabla-renovaciones"></tbody>
               </table>
             </div>
           </div>

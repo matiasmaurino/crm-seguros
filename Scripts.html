@@ -13,6 +13,10 @@
   let filtroVencimientoActual = ""; 
   let filtroResponsableActual = "Todos";
 
+  // Estado y caché del módulo Renovaciones
+  let cacheRenovaciones = [];
+  let filtroVencimientoRenovacionActual = "";
+
   window.onload = () => {
     // Al cargar, no mostramos nada hasta que se loguee (se maneja en el HTML)
   };
@@ -72,7 +76,7 @@
         if (!t.vencimiento || t.estado === 'Terminado') return false;
         const fVenc = new Date(t.vencimiento + "T00:00:00");
         const limite = new Date();
-        limite.setDate(hoy.getDate() + 3);
+        limite.setDate(hoy.getDate() + 7);
         limite.setHours(23,59,59,999);
         if (fVenc < hoy || fVenc > limite) return false;
       }
@@ -261,16 +265,19 @@
         
         // --- CARGAR RAMOS DESDE LA HOJA RAMO ---
         google.script.run.withSuccessHandler(ramos => {
-          const elRamo = document.getElementById('tarea-ramo');
-          if (elRamo) {
-            elRamo.options.length = 1; 
-            ramos.forEach(ramo => {
-              let opt = document.createElement('option');
-              opt.value = ramo;
-              opt.text = ramo;
-              elRamo.add(opt);
-            });
-          }
+          const idsRamo = ['tarea-ramo', 'renovacion-ramo'];
+          idsRamo.forEach(id => {
+            const elRamo = document.getElementById(id);
+            if (elRamo) {
+              elRamo.options.length = 1; 
+              ramos.forEach(ramo => {
+                let opt = document.createElement('option');
+                opt.value = ramo;
+                opt.text = ramo;
+                elRamo.add(opt);
+              });
+            }
+          });
         }).obtenerRamosLista();
 
         const primerBoton = document.querySelectorAll('.nav-item')[0];
@@ -282,6 +289,11 @@
     }).validarLogin(u, p);
   }
 
+  function volverAHistorial() {
+    const btnConsulta = document.querySelector('.nav-item');
+    mostrarSeccion('consulta', btnConsulta);
+  }
+
   function mostrarSeccion(id, elemento) {
     document.querySelectorAll('.modulo').forEach(m => m.style.display = 'none');
     document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
@@ -291,6 +303,9 @@
     actualizarListaClientesGlobal();
     if(id === 'consulta' || id === 'historial-cliente') {
       uiConsultarTareas();
+    }
+    if(id === 'renovaciones') {
+      uiConsultarRenovaciones();
     }
   }
 
@@ -533,6 +548,9 @@
     const tareasAsociadas = cacheTareas.filter(t => t.idCliente == idCliente);
     renderTabla(tareasAsociadas, 'cuerpo-tabla-cliente-directo');
     document.getElementById('modulo-tareas-asociadas').style.display = 'block';
+
+    habilitarCamposRenovacion(true);
+    cargarRenovacionesDeCliente(idCliente);
     
     if (typeof dibujarRelacionados === "function") {
       dibujarRelacionados(cliente.relaciones || []);
@@ -602,6 +620,12 @@
     document.getElementById('modulo-tareas-asociadas').style.display = 'none';
     document.getElementById('cuerpo-tabla-cliente-directo').innerHTML = "";
     relacionadosSeleccionados = [];
+
+    habilitarCamposRenovacion(false);
+    document.getElementById('lista-renovaciones-cliente').innerHTML = "";
+    document.getElementById('renovacion-fecha').value = "";
+    document.getElementById('renovacion-ramo').value = "";
+    document.getElementById('renovacion-comentario').value = "";
   }
 
   function viajarAlCliente(idCliente) {
@@ -715,5 +739,224 @@
       toast.style.opacity = "0";
       setTimeout(() => toast.remove(), 500);
     }, 3000);
+  }
+
+  // =========================================================================
+  // SECTOR 9: GESTIÓN DE RENOVACIONES
+  // =========================================================================
+
+  // --- Carga y guardado desde la pantalla de Clientes ---
+  function habilitarCamposRenovacion(activar) {
+    const campos = ['renovacion-fecha', 'renovacion-ramo', 'renovacion-comentario', 'btn-agregar-renovacion'];
+    campos.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !activar;
+    });
+  }
+
+  function cargarRenovacionesDeCliente(idCliente) {
+    google.script.run.withSuccessHandler(lista => {
+      renderRenovacionesCliente(lista);
+    }).obtenerRenovacionesPorCliente(idCliente);
+  }
+
+  function renderRenovacionesCliente(lista) {
+    const cont = document.getElementById('lista-renovaciones-cliente');
+    cont.innerHTML = '';
+    if (!lista || lista.length === 0) {
+      cont.innerHTML = '<span style="color:var(--secondary); font-size:12px;">Sin renovaciones cargadas</span>';
+      return;
+    }
+    const copia = [...lista].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
+    copia.forEach(r => {
+      const div = document.createElement('div');
+      div.style = "display:flex; align-items:center; justify-content:space-between; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:8px 12px; font-size:13px;";
+      div.innerHTML = `
+        <span><b>${r.fechaRenovacion}</b> — ${r.ramo || 'Sin ramo'}${r.comentario ? ' — ' + r.comentario : ''}</span>
+        <b onclick="eliminarRenovacionCliente(${r.id_fila})" style="cursor:pointer; color:var(--danger); margin-left:12px;">×</b>
+      `;
+      cont.appendChild(div);
+    });
+  }
+
+  function agregarRenovacionCliente() {
+    const idCliente = document.getElementById('cliente-id').value;
+    if (!idCliente) {
+      mostrarMensajeExito("Primero seleccioná o guardá un cliente");
+      return;
+    }
+
+    const fechaInput = document.getElementById('renovacion-fecha').value; // formato yyyy-MM-dd
+    if (!fechaInput) {
+      mostrarMensajeExito("Elegí una fecha de renovación");
+      return;
+    }
+    const partes = fechaInput.split('-'); // [yyyy, MM, dd]
+    const fechaRenovacion = partes[2] + "/" + partes[1]; // guardamos solo "DD/MM"
+
+    const datos = {
+      idCliente: idCliente,
+      fechaRenovacion: fechaRenovacion,
+      ramo: document.getElementById('renovacion-ramo').value,
+      comentario: document.getElementById('renovacion-comentario').value.trim()
+    };
+
+    const btn = document.getElementById('btn-agregar-renovacion');
+    btn.disabled = true;
+
+    google.script.run.withSuccessHandler(() => {
+      mostrarMensajeExito("Renovación agregada");
+      document.getElementById('renovacion-fecha').value = "";
+      document.getElementById('renovacion-ramo').value = "";
+      document.getElementById('renovacion-comentario').value = "";
+      btn.disabled = false;
+      cargarRenovacionesDeCliente(idCliente);
+    }).guardarRenovacion(datos, usuarioLogueado);
+  }
+
+  function eliminarRenovacionCliente(idFila) {
+    if (!confirm("¿Eliminar esta renovación?")) return;
+    const idCliente = document.getElementById('cliente-id').value;
+    google.script.run.withSuccessHandler(() => {
+      mostrarMensajeExito("Renovación eliminada");
+      cargarRenovacionesDeCliente(idCliente);
+    }).eliminarRenovacionEnServidor(idFila);
+  }
+
+  // --- Listado general del módulo Renovaciones ---
+  function uiConsultarRenovaciones() {
+    google.script.run.withSuccessHandler(r => {
+      cacheRenovaciones = r;
+      aplicarFiltrosRenovaciones();
+    }).obtenerRenovaciones();
+  }
+
+  function aplicarFiltrosRenovaciones() {
+    const textoBuscador = document.getElementById('buscador-renovacion').value.toLowerCase().trim();
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+
+    let filtradas = cacheRenovaciones.filter(r => {
+      if (textoBuscador !== "") {
+        const cumple =
+          (r.clienteNombre && r.clienteNombre.toLowerCase().includes(textoBuscador)) ||
+          (r.ramo && r.ramo.toLowerCase().includes(textoBuscador)) ||
+          (r.comentario && r.comentario.toLowerCase().includes(textoBuscador));
+        if (!cumple) return false;
+      }
+
+      if (filtroVencimientoRenovacionActual === "vencidas") {
+        if (!r.vencimiento) return false;
+        const fVenc = new Date(r.vencimiento + "T00:00:00");
+        if (fVenc >= hoy) return false;
+      } else if (filtroVencimientoRenovacionActual === "proximas") {
+        if (!r.vencimiento) return false;
+        const fVenc = new Date(r.vencimiento + "T00:00:00");
+        const limite = new Date();
+        limite.setDate(hoy.getDate() + 7);
+        limite.setHours(23,59,59,999);
+        if (fVenc < hoy || fVenc > limite) return false;
+      }
+
+      return true;
+    });
+
+    renderTablaRenovaciones(filtradas);
+  }
+
+  function renderTablaRenovaciones(lista) {
+    const tbody = document.getElementById('cuerpo-tabla-renovaciones');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (lista.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--secondary);">No se encontraron renovaciones</td></tr>`;
+      return;
+    }
+
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+
+    const copia = [...lista].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
+
+    copia.forEach(r => {
+      const tr = document.createElement('tr');
+      const fVenc = r.vencimiento ? new Date(r.vencimiento + "T00:00:00") : null;
+      const claseFila = (fVenc && fVenc < hoy) ? 'urgente' : 'normal';
+
+      tr.innerHTML = `
+        <td>
+          <button type="button" class="btn-icon" title="Eliminar Renovación" onclick="eliminarRenovacionDesdeListado(${r.id_fila})">🗑️</button>
+        </td>
+        <td>${r.creacion || ''}</td>
+        <td class="${claseFila}" style="font-weight:600;">${r.vencimientoFormat || ''}</td>
+        <td>
+          <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${r.idCliente}'); return false;">
+            ${r.clienteNombre}
+          </a>
+        </td>
+        <td style="font-weight:500; color:var(--zoho-nav);">${r.ramo || '-'}</td>
+        <td><span class="texto-descripcion" title="${r.comentario || ''}">${r.comentario || ''}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function eliminarRenovacionDesdeListado(idFila) {
+    if (!confirm("¿Eliminar esta renovación?")) return;
+    google.script.run.withSuccessHandler(() => {
+      mostrarMensajeExito("Renovación eliminada");
+      uiConsultarRenovaciones();
+    }).eliminarRenovacionEnServidor(idFila);
+  }
+
+  function filtrarTablaRenovaciones() {
+    aplicarFiltrosRenovaciones();
+  }
+
+  function limpiarFiltrosRenovacion() {
+    filtroVencimientoRenovacionActual = "";
+    document.getElementById('buscador-renovacion').value = "";
+    gestionarClasesFiltroRenovacion(null);
+    aplicarFiltrosRenovaciones();
+  }
+
+  function filtrarVencidasRenovacion() {
+    const btn = document.querySelector('.vencida-ren-btn');
+    const yaEstabaActivo = btn && btn.classList.contains('active');
+
+    gestionarClasesFiltroRenovacion(null);
+
+    if (!yaEstabaActivo) {
+      filtroVencimientoRenovacionActual = "vencidas";
+      gestionarClasesFiltroRenovacion('vencida-ren-btn');
+    } else {
+      filtroVencimientoRenovacionActual = "";
+    }
+    aplicarFiltrosRenovaciones();
+  }
+
+  function filtrarProximasRenovacion(dias) {
+    const btn = document.querySelector('.proxima-ren-btn');
+    const yaEstabaActivo = btn && btn.classList.contains('active');
+
+    gestionarClasesFiltroRenovacion(null);
+
+    if (!yaEstabaActivo) {
+      filtroVencimientoRenovacionActual = "proximas";
+      gestionarClasesFiltroRenovacion('proxima-ren-btn');
+    } else {
+      filtroVencimientoRenovacionActual = "";
+    }
+    aplicarFiltrosRenovaciones();
+  }
+
+  function gestionarClasesFiltroRenovacion(claseBotonActivo) {
+    const botones = document.querySelectorAll('.filtro-renovaciones .btn-filter');
+    botones.forEach(btn => btn.classList.remove('active'));
+    if (claseBotonActivo) {
+      const btnActivo = document.querySelector(`.filtro-renovaciones .${claseBotonActivo}`);
+      if (btnActivo) btnActivo.classList.add('active');
+    }
   }
 </script>

@@ -582,3 +582,111 @@ function migrarEventosARepsonsables() {
 
   Logger.log(`Migración finalizada. Total migradas: ${migradas}`);
 }
+// --- GESTIÓN DE RENOVACIONES ---
+
+/**
+ * Devuelve todas las renovaciones cargadas en la hoja RENOVACIONES.
+ * Estructura esperada de la hoja (fila 1 = encabezados):
+ * A: ID | B: FechaCreacion | C: ID_Cliente | D: FechaRenovacion ("DD/MM") | E: Ramo | F: Comentario | G: Usuario
+ *
+ * Como la fecha no tiene año (se repite todos los años), acá calculamos la
+ * "próxima ocurrencia" usando el año actual del servidor, para poder
+ * ordenar/filtrar (Vencidas / Vence en 1 Semana) igual que con las tareas.
+ */
+function obtenerRenovaciones() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName("RENOVACIONES");
+  if (!hoja) return [];
+
+  const data = hoja.getDataRange().getValues();
+  if (data.length <= 1) return [];
+
+  const clientes = obtenerListaClientes();
+  const anioActual = new Date().getFullYear();
+
+  return data.slice(1).map((r, index) => {
+    const idCliente = r[2];                                    // Columna C
+    const fechaRenovacionRaw = (r[3] || "").toString().trim();  // Columna D ("DD/MM")
+    const ramo = r[4] || "";                                    // Columna E
+    const comentario = r[5] || "";                              // Columna F
+
+    if (!idCliente) return null; // fila vacía, la filtramos después
+
+    const c = clientes.find(x => x.id == idCliente);
+
+    let proximaISO = "";
+    let proximaFormat = "";
+    if (fechaRenovacionRaw.indexOf("/") !== -1) {
+      const partes = fechaRenovacionRaw.split("/");
+      const dia = parseInt(partes[0], 10);
+      const mes = parseInt(partes[1], 10);
+      if (!isNaN(dia) && !isNaN(mes)) {
+        const fechaEsteAnio = new Date(anioActual, mes - 1, dia);
+        proximaISO = Utilities.formatDate(fechaEsteAnio, "GMT-3", "yyyy-MM-dd");
+        proximaFormat = Utilities.formatDate(fechaEsteAnio, "GMT-3", "dd/MM/yyyy");
+      }
+    }
+
+    let fCreacionRaw = r[1]; // Columna B
+    let fCreacionFormat = (fCreacionRaw instanceof Date) ? Utilities.formatDate(fCreacionRaw, "GMT-3", "dd/MM/yy") : "-";
+
+    return {
+      id_fila: index + 2,
+      idCliente: idCliente,
+      clienteNombre: c ? c.nombre : "Sin asignar",
+      creacion: fCreacionFormat,
+      fechaRenovacion: fechaRenovacionRaw, // "DD/MM" tal cual está guardado
+      vencimiento: proximaISO,             // próxima ocurrencia (recalcula sola cada año)
+      vencimientoFormat: proximaFormat,
+      ramo: ramo,
+      comentario: comentario
+    };
+  }).filter(r => r !== null);
+}
+
+/**
+ * Devuelve solo las renovaciones de un cliente puntual (para la pantalla de Clientes).
+ */
+function obtenerRenovacionesPorCliente(idCliente) {
+  return obtenerRenovaciones().filter(r => r.idCliente == idCliente);
+}
+
+/**
+ * Agrega una nueva renovación a la hoja RENOVACIONES.
+ * datos = { idCliente, fechaRenovacion ("DD/MM"), ramo, comentario }
+ */
+function guardarRenovacion(datos, usuarioActivo) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName("RENOVACIONES");
+  if (!hoja) throw new Error("No se encontró la hoja RENOVACIONES");
+
+  const data = hoja.getDataRange().getValues();
+  const idNuevo = data.length > 1 ? Number(data[data.length - 1][0]) + 1 : 1;
+
+  hoja.appendRow([
+    idNuevo,
+    new Date(),
+    datos.idCliente,
+    datos.fechaRenovacion,
+    datos.ramo || "",
+    datos.comentario || "",
+    usuarioActivo || "Sistema"
+  ]);
+
+  return { exito: true };
+}
+
+function eliminarRenovacionEnServidor(idFila) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName("RENOVACIONES");
+  if (!hoja) throw new Error("No se encontró la hoja RENOVACIONES");
+
+  const filaNumero = Number(idFila);
+
+  if (filaNumero > 1 && filaNumero <= hoja.getLastRow()) {
+    hoja.deleteRow(filaNumero);
+    return { exito: true };
+  } else {
+    throw new Error("Número de fila inválido para eliminar.");
+  }
+}
