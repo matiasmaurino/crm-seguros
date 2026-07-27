@@ -624,6 +624,7 @@
     habilitarCamposRenovacion(false);
     document.getElementById('lista-renovaciones-cliente').innerHTML = "";
     document.getElementById('renovacion-fecha').value = "";
+    document.getElementById('renovacion-frecuencia').value = "";
     document.getElementById('renovacion-ramo').value = "";
     document.getElementById('renovacion-comentario').value = "";
   }
@@ -746,8 +747,17 @@
   // =========================================================================
 
   // --- Carga y guardado desde la pantalla de Clientes ---
+  function refrescarTareasClienteEnPantalla(idCliente) {
+    google.script.run.withSuccessHandler(t => {
+      cacheTareas = t;
+      const tareasAsociadas = cacheTareas.filter(x => x.idCliente == idCliente);
+      renderTabla(tareasAsociadas, 'cuerpo-tabla-cliente-directo');
+      document.getElementById('modulo-tareas-asociadas').style.display = 'block';
+    }).obtenerTareas();
+  }
+
   function habilitarCamposRenovacion(activar) {
-    const campos = ['renovacion-fecha', 'renovacion-ramo', 'renovacion-comentario', 'btn-agregar-renovacion'];
+    const campos = ['renovacion-fecha', 'renovacion-frecuencia', 'renovacion-compania', 'renovacion-ramo', 'renovacion-comentario', 'btn-agregar-renovacion'];
     campos.forEach(id => {
       const el = document.getElementById(id);
       if (el) el.disabled = !activar;
@@ -772,7 +782,7 @@
       const div = document.createElement('div');
       div.style = "display:flex; align-items:center; justify-content:space-between; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:8px 12px; font-size:13px;";
       div.innerHTML = `
-        <span><b>${r.fechaRenovacion}</b> — ${r.ramo || 'Sin ramo'}${r.comentario ? ' — ' + r.comentario : ''}</span>
+        <span><b>${r.vencimientoFormat || r.fechaRenovacion}</b>${r.frecuencia ? ' (' + r.frecuencia + ')' : ''}${r.compania ? ' — ' + r.compania : ''} — ${r.ramo || 'Sin ramo'}${r.comentario ? ' — ' + r.comentario : ''}</span>
         <b onclick="eliminarRenovacionCliente(${r.id_fila})" style="cursor:pointer; color:var(--danger); margin-left:12px;">×</b>
       `;
       cont.appendChild(div);
@@ -797,21 +807,37 @@
     const datos = {
       idCliente: idCliente,
       fechaRenovacion: fechaRenovacion,
+      frecuencia: document.getElementById('renovacion-frecuencia').value,
+      compania: document.getElementById('renovacion-compania').value,
       ramo: document.getElementById('renovacion-ramo').value,
       comentario: document.getElementById('renovacion-comentario').value.trim()
     };
 
     const btn = document.getElementById('btn-agregar-renovacion');
+    const textoOriginalBtn = btn.innerText;
     btn.disabled = true;
+    btn.innerText = "Procesando...";
 
-    google.script.run.withSuccessHandler(() => {
-      mostrarMensajeExito("Renovación agregada");
-      document.getElementById('renovacion-fecha').value = "";
-      document.getElementById('renovacion-ramo').value = "";
-      document.getElementById('renovacion-comentario').value = "";
-      btn.disabled = false;
-      cargarRenovacionesDeCliente(idCliente);
-    }).guardarRenovacion(datos, usuarioLogueado);
+    google.script.run
+      .withSuccessHandler(r => {
+        const cantidad = (r && r.tareasCreadas) || 0;
+        const hasta = (r && r.hasta) ? " (hasta " + r.hasta + ")" : "";
+        mostrarMensajeExito("Renovación agregada. Se crearon " + cantidad + " tareas" + hasta);
+        document.getElementById('renovacion-fecha').value = "";
+        document.getElementById('renovacion-frecuencia').value = "";
+        document.getElementById('renovacion-ramo').value = "";
+        document.getElementById('renovacion-comentario').value = "";
+        btn.disabled = false;
+        btn.innerText = textoOriginalBtn;
+        cargarRenovacionesDeCliente(idCliente);
+        refrescarTareasClienteEnPantalla(idCliente);
+      })
+      .withFailureHandler(error => {
+        mostrarMensajeExito("Error al guardar: " + error.message);
+        btn.disabled = false;
+        btn.innerText = textoOriginalBtn;
+      })
+      .guardarRenovacion(datos, usuarioLogueado);
   }
 
   function eliminarRenovacionCliente(idFila) {
@@ -841,6 +867,7 @@
         const cumple =
           (r.clienteNombre && r.clienteNombre.toLowerCase().includes(textoBuscador)) ||
           (r.ramo && r.ramo.toLowerCase().includes(textoBuscador)) ||
+          (r.frecuencia && r.frecuencia.toLowerCase().includes(textoBuscador)) ||
           (r.comentario && r.comentario.toLowerCase().includes(textoBuscador));
         if (!cumple) return false;
       }
@@ -870,7 +897,7 @@
     tbody.innerHTML = '';
 
     if (lista.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--secondary);">No se encontraron renovaciones</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">No se encontraron renovaciones</td></tr>`;
       return;
     }
 
@@ -887,6 +914,7 @@
       tr.innerHTML = `
         <td>
           <button type="button" class="btn-icon" title="Eliminar Renovación" onclick="eliminarRenovacionDesdeListado(${r.id_fila})">🗑️</button>
+          <button type="button" class="btn-icon" title="Generar 10 tareas más" onclick="regenerarTareasRenovacionUI(${r.id_fila})">🔁</button>
         </td>
         <td>${r.creacion || ''}</td>
         <td class="${claseFila}" style="font-weight:600;">${r.vencimientoFormat || ''}</td>
@@ -895,6 +923,8 @@
             ${r.clienteNombre}
           </a>
         </td>
+        <td>${r.frecuencia || '-'}</td>
+        <td>${r.compania || '-'}</td>
         <td style="font-weight:500; color:var(--zoho-nav);">${r.ramo || '-'}</td>
         <td><span class="texto-descripcion" title="${r.comentario || ''}">${r.comentario || ''}</span></td>
       `;
@@ -908,6 +938,22 @@
       mostrarMensajeExito("Renovación eliminada");
       uiConsultarRenovaciones();
     }).eliminarRenovacionEnServidor(idFila);
+  }
+
+  function regenerarTareasRenovacionUI(idFila) {
+    if (!confirm("¿Generar 10 tareas más para esta renovación?")) return;
+    google.script.run
+      .withSuccessHandler(r => {
+        const cantidad = (r && r.tareasCreadas) || 0;
+        const hasta = (r && r.hasta) ? " (hasta " + r.hasta + ")" : "";
+        mostrarMensajeExito("Se crearon " + cantidad + " tareas más" + hasta);
+        uiConsultarRenovaciones();
+        uiConsultarTareas();
+      })
+      .withFailureHandler(error => {
+        mostrarMensajeExito("Error: " + error.message);
+      })
+      .regenerarTareasRenovacion(idFila);
   }
 
   function filtrarTablaRenovaciones() {
