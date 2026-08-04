@@ -711,21 +711,48 @@ function calcularProximasOcurrencias(dia, mes, intervaloMeses, cantidad, desde) 
  * agendando también su evento de Calendar (igual que una tarea creada a mano).
  * Devuelve la cantidad de tareas creadas.
  */
+/**
+ * Crea en la hoja TAREAS una tarea de tipo "Renovacion" por cada fecha de la lista,
+ * agendando también su evento de Calendar. Devuelve la cantidad de tareas creadas.
+ *
+ * OPTIMIZADA: antes esta función releía TODA la hoja CLIENTES y hacía un appendRow +
+ * una relectura de la fila por cada una de las 10 tareas (a través de
+ * agendarTareaEnCalendar), lo que la hacía muy lenta. Ahora el dato del cliente se
+ * busca una única vez y las filas de TAREAS se escriben todas juntas en un solo batch.
+ * Lo único que sigue siendo 1 llamada por tarea es la creación del evento de Calendar,
+ * porque la API de Calendar no permite crear varios eventos en una sola llamada.
+ */
 function generarTareasRenovacion(idCliente, compania, ramo, comentario, fechasOcurrencias, usuarioActivo) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const hojaTareas = ss.getSheetByName("TAREAS");
   if (!hojaTareas) return 0;
 
-  const data = hojaTareas.getDataRange().getValues();
-  let idTareaActual = data.length > 1 ? Number(data[data.length - 1][1]) : 0;
-  if (isNaN(idTareaActual)) idTareaActual = 0;
+  const ultimaFilaActual = hojaTareas.getLastRow();
+  let idTareaActual = 0;
+  if (ultimaFilaActual > 1) {
+    idTareaActual = Number(hojaTareas.getRange(ultimaFilaActual, 2).getValue()) || 0;
+  }
 
-  let creadas = 0;
-  fechasOcurrencias.forEach(fecha => {
+  // Buscamos los datos del cliente UNA sola vez (antes se releía toda la hoja CLIENTES por cada tarea)
+  const hojaClientes = ss.getSheetByName("CLIENTES");
+  const datosClientes = hojaClientes.getDataRange().getValues();
+  let nombreCliente = "Cliente desconocido";
+  let telefono = "No cargado";
+  let email = "";
+  for (let i = 1; i < datosClientes.length; i++) {
+    if (datosClientes[i][0].toString() === idCliente.toString()) {
+      nombreCliente = datosClientes[i][1];
+      telefono = datosClientes[i][4];
+      email = datosClientes[i][5];
+      break;
+    }
+  }
+
+  // Armamos todas las filas en memoria y las escribimos en una sola operación
+  const filasNuevas = fechasOcurrencias.map(fecha => {
     idTareaActual++;
     const fechaVenc = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate(), 12, 0, 0);
-
-    const filaValores = [
+    return [
       new Date(),          // A: Fecha Creación
       idTareaActual,       // B: ID Tarea
       compania || "",      // C
@@ -734,7 +761,7 @@ function generarTareasRenovacion(idCliente, compania, ramo, comentario, fechasOc
       fechaVenc,           // F: Vencimiento
       "Sin leer",          // G: Estado
       "",                  // H
-      "",                  // I
+      "",                  // I: ID evento de Calendar (se completa después)
       "Normal",            // J: Prioridad
       "",                  // K: Adjunto
       idCliente,           // L
@@ -742,19 +769,40 @@ function generarTareasRenovacion(idCliente, compania, ramo, comentario, fechasOc
       "",                  // N: Responsable
       ramo || ""           // O: Ramo
     ];
-
-    hojaTareas.appendRow(filaValores);
-    creadas++;
-
-    try {
-      const nuevaFila = hojaTareas.getLastRow();
-      agendarTareaEnCalendar(nuevaFila);
-    } catch (e) {
-      Logger.log("Error al agendar tarea de renovación en calendario: " + e.toString());
-    }
   });
 
-  return creadas;
+  const filaInicio = ultimaFilaActual + 1;
+  hojaTareas.getRange(filaInicio, 1, filasNuevas.length, 15).setValues(filasNuevas);
+
+  // Creamos los eventos de Calendar. Esta parte sigue siendo 1 llamada por evento
+  // (la API de Calendar no admite creación en lote), pero ya no repetimos lecturas.
+  const calendario = CalendarApp.getCalendarById(CALENDARIO_POR_DEFECTO);
+  const idsEventos = filasNuevas.map(fila => {
+    let idEvento = "";
+    if (calendario) {
+      try {
+        const fechaEvento = fila[5];
+        const finEvento = new Date(fechaEvento.getTime() + 60 * 60 * 1000);
+        const titulo = "Tarea: Renovacion - " + nombreCliente;
+        const descripcion = "ID Cliente: " + idCliente +
+                            "\nNombre: " + nombreCliente +
+                            "\nTarea: Renovacion" +
+                            "\nTeléfono: " + telefono +
+                            "\nEmail: " + email;
+        const evento = calendario.createEvent(titulo, fechaEvento, finEvento, { description: descripcion });
+        evento.addEmailReminder(1440);
+        idEvento = evento.getId();
+      } catch (e) {
+        Logger.log("Error al agendar tarea de renovación en calendario: " + e.toString());
+      }
+    }
+    return [idEvento];
+  });
+
+  // Guardamos todos los IDs de evento (columna I) en un solo batch
+  hojaTareas.getRange(filaInicio, 9, idsEventos.length, 1).setValues(idsEventos);
+
+  return filasNuevas.length;
 }
 
 /**
@@ -910,4 +958,39 @@ function eliminarRenovacionEnServidor(idFila) {
   } else {
     throw new Error("Número de fila inválido para eliminar.");
   }
+}
+
+// --- MANTENIMIENTO ---
+
+/**
+ * EJECUTAR MANUALMENTE 1 SOLA VEZ para arreglar los nombres de clientes que
+ * quedaron con "[RIV]", "[PS]" o "[FP]" grabados como texto literal en la
+ * columna B (bug de cargarDatosClienteEdicion, ya corregido). Saca cualquier
+ * cantidad de esas etiquetas que haya quedado pegada al nombre, incluidas
+ * las duplicadas (ej: "CARDOSO GUSTAVO [FP] [FP]" -> "CARDOSO GUSTAVO").
+ */
+function limpiarNombresClientes() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName("CLIENTES");
+  if (!hoja) return;
+
+  const ultimaFila = hoja.getLastRow();
+  if (ultimaFila < 2) return;
+
+  const rango = hoja.getRange(2, 2, ultimaFila - 1, 1); // Columna B: Nombre
+  const valores = rango.getValues();
+  const regexEtiquetas = / \[[^\]]*\]/g;
+  let corregidos = 0;
+
+  for (let i = 0; i < valores.length; i++) {
+    const nombreOriginal = (valores[i][0] || "").toString();
+    const nombreLimpio = nombreOriginal.replace(regexEtiquetas, "").trim();
+    if (nombreLimpio !== nombreOriginal) {
+      valores[i][0] = nombreLimpio;
+      corregidos++;
+    }
+  }
+
+  rango.setValues(valores);
+  Logger.log(`Nombres corregidos: ${corregidos}`);
 }
