@@ -528,7 +528,7 @@
     if (!cliente) return;
 
     document.getElementById('cliente-id').value = cliente.id;
-    document.getElementById('nombre').value = cliente.nombrePuro || "";
+    document.getElementById('nombre').value = cliente.nombre || "";
     document.getElementById('dni').value = cliente.dni || "";
     document.getElementById('domicilio').value = cliente.domicilio || "";
     document.getElementById('telefono').value = cliente.telefono || "";
@@ -702,10 +702,20 @@
     }
   }
 
+  // Busca por palabras sueltas en cualquier orden: "MATIAS MAU" matchea
+  // "MAURINO MATIAS" (antes exigía la frase completa como bloque, en el
+  // mismo orden en que la tipeabas, y por eso fallaba con Apellido Nombre).
+  function coincideBusquedaCliente(nombre, query) {
+    const palabras = query.toLowerCase().trim().split(/\s+/).filter(p => p.length > 0);
+    if (palabras.length === 0) return true;
+    const nombreLower = nombre.toLowerCase();
+    return palabras.every(palabra => nombreLower.includes(palabra));
+  }
+
   function filtrarSelectClientes(v) {
     const s = document.getElementById('buscar-cliente-select');
     s.innerHTML = '<option value="">-- Seleccione un cliente --</option>';
-    cacheClientes.filter(c => c.nombre.toLowerCase().includes(v.toLowerCase())).forEach(c => {
+    cacheClientes.filter(c => coincideBusquedaCliente(c.nombre, v)).forEach(c => {
       let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; s.add(o);
     });
   }
@@ -714,7 +724,7 @@
     const s = document.getElementById('select-cliente');
     if (!s) return;
     s.innerHTML = '<option value="">-- Seleccione --</option>';
-    cacheClientes.filter(c => c.nombre.toLowerCase().includes(v.toLowerCase())).forEach(c => {
+    cacheClientes.filter(c => coincideBusquedaCliente(c.nombre, v)).forEach(c => {
       let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; s.add(o);
     });
   }
@@ -722,7 +732,7 @@
   function filtrarSelectHistorial(v) {
     const s = document.getElementById('select-cliente-historial');
     s.innerHTML = '<option value="">-- Seleccione un cliente --</option>';
-    const filtrados = cacheClientes.filter(c => c.nombre.toLowerCase().includes(v.toLowerCase()));
+    const filtrados = cacheClientes.filter(c => coincideBusquedaCliente(c.nombre, v));
     filtrados.forEach(c => {
       let o = document.createElement('option'); o.value = c.id; o.text = c.nombre; s.add(o);
     });
