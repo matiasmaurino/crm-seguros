@@ -8,7 +8,7 @@
   <body>
     
     <div id="pantalla-login" style="display:flex; justify-content:center; align-items:center; height:100vh; background:var(--zoho-nav);">
-      <form id="login-form" onsubmit="manejarEnvioLogin(event)" class="box-search" style="background:white; padding:40px; border-radius:8px; width:350px; margin:0;">
+      <form id="login-form" onsubmit="manejarEnvioLogin(event)" class="box-search" style="background:white; padding:40px; border-radius:8px; width:350px; margin:0; border-bottom:none;">
         <h2 style="text-align:center; color:var(--zoho-nav); margin-bottom:20px;">Acceso CRM</h2>
         
         <input type="text" id="user" name="username" placeholder="Usuario" autocomplete="username" style="margin-bottom:15px; width:100%;" required>
@@ -36,8 +36,12 @@
         <div class="content-area">
           
           <div id="consulta" class="modulo">
+            <div class="header-modulo">
+              <h2>Historial Tareas</h2>
+            </div>
             <div class="table-controls" style="flex-direction: column; align-items: flex-start;">
-              <input type="text" id="buscador-tarea" placeholder="Buscar Tareas..." onkeyup="filtrarTablaGeneral()" style="width: 100%;">
+              <input type="text" id="buscador-tarea" placeholder="Buscar Tareas..." onkeyup="filtrarTablaGeneral()" style="width: 100%; margin-bottom: 20px;">
+              <div style="width: 100%; border-bottom: 1px solid #eee; margin-bottom: 20px;"></div>
               
               <div class="filter-buttons" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
   
@@ -194,6 +198,11 @@
               <div class="field-group">
                 <label>Notas adicionales del cliente</label>
                 <textarea id="cliente-observaciones" rows="3" disabled></textarea>
+              </div>
+
+              <div class="field-group">
+                <label>Renovación Combinado Familiar</label>
+                <textarea id="renovacion-combinado-familiar" rows="3" disabled readonly style="background-color:#f4f6f8; cursor:not-allowed;"></textarea>
               </div>
               
               <div class="form-actions">

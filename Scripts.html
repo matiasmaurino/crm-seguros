@@ -111,7 +111,6 @@
 
     copia.forEach(t => {
       const tr = document.createElement('tr');
-      let claseFila = t.estado === 'Terminado' ? 'terminado' : (t.prioridad === 'Urgente' ? 'urgente' : 'normal');
       const jsonStr = encodeURIComponent(JSON.stringify(t));
 
       const fCreacion = t.creacion ? t.creacion.split('-').reverse().join('/') : '';
@@ -122,7 +121,7 @@
           <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
         </td>
         <td>${fCreacion}</td>
-        <td class="${claseFila}" style="font-weight:600;">${fVencim}</td>
+        <td style="font-weight:600;">${fVencim}</td>
         <td>
           <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${t.idCliente}'); return false;">
             ${t.clienteNombre}
@@ -341,7 +340,6 @@
 
     copia.forEach(t => {
       const tr = document.createElement('tr');
-      let claseFila = t.estado === 'Terminado' ? 'terminado' : (t.prioridad === 'Urgente' ? 'urgente' : 'normal');
       const jsonStr = encodeURIComponent(JSON.stringify(t));
 
       const fCreacion = t.creacion ? t.creacion.split('-').reverse().join('/') : '';
@@ -352,7 +350,7 @@
           <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
         </td>
         <td>${fCreacion}</td>
-        <td class="${claseFila}" style="font-weight:600;">${fVencim}</td>
+        <td style="font-weight:600;">${fVencim}</td>
         <td>
           <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${t.idCliente}'); return false;">
             ${t.clienteNombre}
@@ -537,6 +535,7 @@
     document.getElementById('provincia').value = cliente.provincia || "";
     document.getElementById('fedPatronal').value = cliente.fedPatronal || "";
     document.getElementById('cliente-observaciones').value = cliente.observaciones || "";
+    document.getElementById('renovacion-combinado-familiar').value = cliente.renovacionCombinadoFamiliar || "";
 
     document.getElementById('titulo-cliente').innerText = "Consulta de Cliente: " + cliente.nombre.toUpperCase();
 

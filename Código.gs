@@ -40,8 +40,24 @@ function obtenerListaClientes() {
   const hoja = ss.getSheetByName("CLIENTES");
   const data = hoja.getDataRange().getValues();
   if (data.length <= 1) return [];
+
+  // Armamos un mapa Nombre -> "Renovación Combinado Familiar" leyendo la hoja
+  // FORMULARIO CF: columna O = nombre para vincular con CLIENTES columna B,
+  // columna P = el dato de solo lectura que se muestra en la ficha del cliente.
+  const mapaRenovacionCF = {};
+  const hojaCF = ss.getSheetByName("FORMULARIO CF");
+  if (hojaCF) {
+    const datosCF = hojaCF.getDataRange().getValues();
+    for (let i = 1; i < datosCF.length; i++) {
+      const nombreCF = limpiarEtiquetaNombre(datosCF[i][14]).toUpperCase(); // Columna O, sin el "[RIV/PS/FP]"
+      if (nombreCF) {
+        mapaRenovacionCF[nombreCF] = datosCF[i][15]; // Columna P
+      }
+    }
+  }
   
   return data.slice(1).map(r => {
+    const nombreClienteLimpio = limpiarEtiquetaNombre(r[1]).toUpperCase();
     return {
       id: r[0],
       nombre: r[1], // tal cual está en la hoja (ya incluye "[RIV / PS / FP]" si corresponde)
@@ -53,7 +69,8 @@ function obtenerListaClientes() {
       provincia: r[7],
       fedPatronal: r[8],
       relacionados: r[9],
-      observaciones: r[10]
+      observaciones: r[10],
+      renovacionCombinadoFamiliar: mapaRenovacionCF[nombreClienteLimpio] || ""
     };
   });
 }
