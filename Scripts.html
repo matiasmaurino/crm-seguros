@@ -15,6 +15,9 @@
 
   // Estado y caché del módulo Renovaciones
   let cacheRenovaciones = [];
+  let cachePolizasGeneral = [];
+  let paginaActualPolizas = 1;
+  const TAMANO_PAGINA_POLIZAS = 10;
   let filtroVencimientoRenovacionActual = "";
 
   window.onload = () => {
@@ -264,7 +267,7 @@
         
         // --- CARGAR RAMOS DESDE LA HOJA RAMO ---
         google.script.run.withSuccessHandler(ramos => {
-          const idsRamo = ['tarea-ramo', 'renovacion-ramo'];
+          const idsRamo = ['tarea-ramo', 'renovacion-ramo', 'poliza-manual-ramo'];
           idsRamo.forEach(id => {
             const elRamo = document.getElementById(id);
             if (elRamo) {
@@ -279,7 +282,7 @@
           });
         }).obtenerRamosLista();
 
-        const primerBoton = document.querySelectorAll('.nav-item')[0];
+        const primerBoton = document.getElementById('nav-historial-tareas');
         mostrarSeccion('consulta', primerBoton);
         mostrarMensajeExito("Bienvenido " + u);
       } else {
@@ -305,6 +308,12 @@
     }
     if(id === 'renovaciones') {
       uiConsultarRenovaciones();
+    }
+    if(id === 'polizas') {
+      uiConsultarPolizasGeneral();
+    }
+    if(id === 'siniestros') {
+      uiConsultarSiniestros();
     }
   }
 
@@ -397,6 +406,7 @@
         vencimiento: document.getElementById('tarea-vencimiento').value,
         ramo: document.getElementById('tarea-ramo').value, 
         responsable: document.getElementById('tarea-responsable').value,
+        numeroSiniestro: document.getElementById('tarea-numero-siniestro').value.trim(),
         descripcion: document.getElementById('tarea-desc').value,
         adjunto: url || ""
       };
@@ -420,7 +430,7 @@
 
   function prepararEdicionTarea(json) {
     const t = JSON.parse(decodeURIComponent(json));
-    const btnTarea = document.querySelectorAll('.nav-item')[1];
+    const btnTarea = document.getElementById('nav-nueva-tarea');
     mostrarSeccion('tareas', btnTarea);
     document.getElementById('tarea-id-fila').value = t.id_fila;
     document.getElementById('contenedor-seleccion-cliente').style.display = 'none';
@@ -433,6 +443,7 @@
     document.getElementById('tarea-prioridad').value = t.prioridad;
     document.getElementById('tarea-responsable').value = t.responsable || "";
     document.getElementById('tarea-ramo').value = t.ramo || ""; 
+    document.getElementById('tarea-numero-siniestro').value = t.numeroSiniestro || "";
     document.getElementById('tarea-vencimiento').type = 'date';
     document.getElementById('tarea-vencimiento').value = t.vencimiento;
     document.getElementById('tarea-desc').value = t.descripcion;
@@ -548,8 +559,8 @@
     renderTabla(tareasAsociadas, 'cuerpo-tabla-cliente-directo');
     document.getElementById('modulo-tareas-asociadas').style.display = 'block';
 
-    habilitarCamposRenovacion(true);
-    cargarRenovacionesDeCliente(idCliente);
+    cargarPolizasCliente(idCliente);
+    habilitarCamposPolizaManual(true);
     
     if (typeof dibujarRelacionados === "function") {
       dibujarRelacionados(cliente.relaciones || []);
@@ -620,17 +631,16 @@
     document.getElementById('cuerpo-tabla-cliente-directo').innerHTML = "";
     relacionadosSeleccionados = [];
 
-    habilitarCamposRenovacion(false);
-    document.getElementById('lista-renovaciones-cliente').innerHTML = "";
-    document.getElementById('renovacion-fecha').value = "";
-    document.getElementById('renovacion-frecuencia').value = "";
-    document.getElementById('renovacion-ramo').value = "";
-    document.getElementById('renovacion-comentario').value = "";
+    habilitarCamposPolizaManual(false);
+    document.getElementById('poliza-manual-ramo').value = "";
+    document.getElementById('poliza-manual-numero').value = "";
+    document.getElementById('poliza-manual-productor').value = "";
+    limpiarTablaPolizas();
   }
 
   function viajarAlCliente(idCliente) {
     if (!idCliente) return;
-    const btnClientes = document.querySelectorAll('.nav-item')[3];
+    const btnClientes = document.getElementById('nav-clientes');
     mostrarSeccion('clientes', btnClientes);
     const selectBuscador = document.getElementById('buscar-cliente-select');
     if (selectBuscador) {
@@ -765,97 +775,365 @@
     }).obtenerTareas();
   }
 
-  function habilitarCamposRenovacion(activar) {
-    const campos = ['renovacion-fecha', 'renovacion-frecuencia', 'renovacion-compania', 'renovacion-ramo', 'renovacion-comentario', 'btn-agregar-renovacion'];
+  function limpiarTablaPolizas() {
+    document.getElementById('cuerpo-tabla-polizas').innerHTML = '';
+    document.getElementById('wrapper-tabla-polizas').style.display = 'none';
+    document.getElementById('sin-polizas-cliente').style.display = 'block';
+    document.getElementById('sin-polizas-cliente').innerText = 'Seleccioná un cliente para ver sus pólizas';
+  }
+
+  function cargarPolizasCliente(idCliente) {
+    document.getElementById('sin-polizas-cliente').style.display = 'block';
+    document.getElementById('sin-polizas-cliente').innerText = 'Buscando pólizas...';
+    document.getElementById('wrapper-tabla-polizas').style.display = 'none';
+
+    google.script.run
+      .withSuccessHandler(lista => {
+        renderPolizasCliente(lista);
+      })
+      .withFailureHandler(error => {
+        document.getElementById('sin-polizas-cliente').innerText = 'Error al buscar pólizas: ' + error.message;
+      })
+      .obtenerPolizasPorCliente(idCliente);
+  }
+
+  function renderPolizasCliente(lista) {
+    const cuerpo = document.getElementById('cuerpo-tabla-polizas');
+    const wrapper = document.getElementById('wrapper-tabla-polizas');
+    const sinDatos = document.getElementById('sin-polizas-cliente');
+    const idCliente = document.getElementById('cliente-id').value;
+
+    if (!lista || lista.length === 0) {
+      wrapper.style.display = 'none';
+      sinDatos.style.display = 'block';
+      sinDatos.innerText = 'No se encontraron pólizas para este cliente en Liquidaciones';
+      return;
+    }
+
+    cuerpo.innerHTML = '';
+    lista.forEach(p => {
+      const tr = document.createElement('tr');
+      const badge = p.pendiente
+        ? ' <span style="background:#fef3c7; color:#92400e; font-size:10px; padding:2px 6px; border-radius:8px; font-weight:600;">PENDIENTE</span>'
+        : '';
+      const btnBorrar = p.pendiente
+        ? `<button type="button" class="btn-icon" title="Eliminar carga manual" onclick="eliminarPolizaManualUI(${p.idFilaManual}, '${idCliente}')">🗑️</button>`
+        : '';
+      tr.innerHTML = `
+        <td>${btnBorrar}</td>
+        <td>${p.cia || ''}</td>
+        <td style="font-weight:500; color:var(--zoho-nav);">${p.ramo || '-'}${badge}</td>
+        <td>${p.poliza || ''}</td>
+        <td>${p.ultimaFecha || ''}</td>
+        <td>${p.prima || ''}</td>
+        <td>${p.premio || ''}</td>
+        <td>${p.comision || ''}</td>
+      `;
+      cuerpo.appendChild(tr);
+    });
+
+    sinDatos.style.display = 'none';
+    wrapper.style.display = 'block';
+  }
+
+  function habilitarCamposPolizaManual(activar) {
+    const campos = ['poliza-manual-compania', 'poliza-manual-ramo', 'poliza-manual-numero', 'poliza-manual-productor', 'btn-agregar-poliza-manual'];
     campos.forEach(id => {
       const el = document.getElementById(id);
       if (el) el.disabled = !activar;
     });
   }
 
-  function cargarRenovacionesDeCliente(idCliente) {
-    google.script.run.withSuccessHandler(lista => {
-      renderRenovacionesCliente(lista);
-    }).obtenerRenovacionesPorCliente(idCliente);
-  }
-
-  function renderRenovacionesCliente(lista) {
-    const cont = document.getElementById('lista-renovaciones-cliente');
-    cont.innerHTML = '';
-    if (!lista || lista.length === 0) {
-      cont.innerHTML = '<span style="color:var(--secondary); font-size:12px;">Sin renovaciones cargadas</span>';
-      return;
-    }
-    const copia = [...lista].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
-    copia.forEach(r => {
-      const div = document.createElement('div');
-      div.style = "display:flex; align-items:center; justify-content:space-between; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px; padding:8px 12px; font-size:13px;";
-      div.innerHTML = `
-        <span><b>${r.vencimientoFormat || r.fechaRenovacion}</b>${r.frecuencia ? ' (' + r.frecuencia + ')' : ''}${r.compania ? ' — ' + r.compania : ''} — ${r.ramo || 'Sin ramo'}${r.comentario ? ' — ' + r.comentario : ''}</span>
-        <b onclick="eliminarRenovacionCliente(${r.id_fila})" style="cursor:pointer; color:var(--danger); margin-left:12px;">×</b>
-      `;
-      cont.appendChild(div);
-    });
-  }
-
-  function agregarRenovacionCliente() {
+  function agregarPolizaManual() {
     const idCliente = document.getElementById('cliente-id').value;
     if (!idCliente) {
       mostrarMensajeExito("Primero seleccioná o guardá un cliente");
       return;
     }
 
-    const fechaInput = document.getElementById('renovacion-fecha').value; // formato yyyy-MM-dd
-    if (!fechaInput) {
-      mostrarMensajeExito("Elegí una fecha de renovación");
+    const numero = document.getElementById('poliza-manual-numero').value.trim();
+    if (!numero) {
+      mostrarMensajeExito("Ingresá el número de póliza");
       return;
     }
-    const partes = fechaInput.split('-'); // [yyyy, MM, dd]
-    const fechaRenovacion = partes[2] + "/" + partes[1]; // guardamos solo "DD/MM"
 
     const datos = {
       idCliente: idCliente,
-      fechaRenovacion: fechaRenovacion,
-      frecuencia: document.getElementById('renovacion-frecuencia').value,
-      compania: document.getElementById('renovacion-compania').value,
-      ramo: document.getElementById('renovacion-ramo').value,
-      comentario: document.getElementById('renovacion-comentario').value.trim()
+      compania: document.getElementById('poliza-manual-compania').value,
+      ramo: document.getElementById('poliza-manual-ramo').value,
+      poliza: numero,
+      productor: document.getElementById('poliza-manual-productor').value.trim()
     };
 
-    const btn = document.getElementById('btn-agregar-renovacion');
-    const textoOriginalBtn = btn.innerText;
+    const btn = document.getElementById('btn-agregar-poliza-manual');
+    const textoOriginal = btn.innerText;
     btn.disabled = true;
-    btn.innerText = "Procesando...";
+    btn.innerText = "Guardando...";
 
     google.script.run
-      .withSuccessHandler(r => {
-        const cantidad = (r && r.tareasCreadas) || 0;
-        const hasta = (r && r.hasta) ? " (hasta " + r.hasta + ")" : "";
-        mostrarMensajeExito("Renovación agregada. Se crearon " + cantidad + " tareas" + hasta);
-        document.getElementById('renovacion-fecha').value = "";
-        document.getElementById('renovacion-frecuencia').value = "";
-        document.getElementById('renovacion-ramo').value = "";
-        document.getElementById('renovacion-comentario').value = "";
+      .withSuccessHandler(() => {
+        mostrarMensajeExito("Póliza agregada");
+        document.getElementById('poliza-manual-ramo').value = "";
+        document.getElementById('poliza-manual-numero').value = "";
+        document.getElementById('poliza-manual-productor').value = "";
         btn.disabled = false;
-        btn.innerText = textoOriginalBtn;
-        cargarRenovacionesDeCliente(idCliente);
-        refrescarTareasClienteEnPantalla(idCliente);
+        btn.innerText = textoOriginal;
+        cargarPolizasCliente(idCliente);
       })
       .withFailureHandler(error => {
         mostrarMensajeExito("Error al guardar: " + error.message);
         btn.disabled = false;
-        btn.innerText = textoOriginalBtn;
+        btn.innerText = textoOriginal;
       })
-      .guardarRenovacion(datos, usuarioLogueado);
+      .guardarPolizaManual(datos, usuarioLogueado);
   }
 
-  function eliminarRenovacionCliente(idFila) {
-    if (!confirm("¿Eliminar esta renovación?")) return;
-    const idCliente = document.getElementById('cliente-id').value;
-    google.script.run.withSuccessHandler(() => {
-      mostrarMensajeExito("Renovación eliminada");
-      cargarRenovacionesDeCliente(idCliente);
-    }).eliminarRenovacionEnServidor(idFila);
+  function eliminarPolizaManualUI(idFila, idCliente) {
+    if (!confirm("¿Eliminar esta póliza cargada manualmente?")) return;
+    google.script.run
+      .withSuccessHandler(() => {
+        mostrarMensajeExito("Póliza eliminada");
+        cargarPolizasCliente(idCliente);
+      })
+      .withFailureHandler(error => {
+        mostrarMensajeExito("Error: " + error.message);
+      })
+      .eliminarPolizaManualEnServidor(idFila);
+  }
+
+  // =========================================================================
+  // MÓDULO PÓLIZAS (general, todas las compañías/clientes)
+  // =========================================================================
+  function uiConsultarPolizasGeneral() {
+    const tbody = document.getElementById('cuerpo-tabla-polizas-general');
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--secondary);">Buscando pólizas...</td></tr>`;
+
+    google.script.run
+      .withSuccessHandler(lista => {
+        cachePolizasGeneral = lista;
+        poblarFiltrosPolizas(lista);
+        aplicarFiltrosPolizas();
+      })
+      .withFailureHandler(error => {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--danger);">Error al buscar pólizas: ${error.message}</td></tr>`;
+      })
+      .obtenerTodasLasPolizas();
+  }
+
+  function poblarFiltrosPolizas(lista) {
+    const selProductor = document.getElementById('filtro-productor-polizas');
+    const selRamo = document.getElementById('filtro-ramo-polizas');
+    const productorActual = selProductor.value || "Todos";
+    const ramoActual = selRamo.value || "Todos";
+
+    const productores = [...new Set(lista.map(p => p.productor).filter(p => p))].sort();
+    const ramos = [...new Set(lista.map(p => p.ramo).filter(r => r))].sort();
+
+    selProductor.innerHTML = '<option value="Todos">Productor: Todos</option>';
+    productores.forEach(p => {
+      const o = document.createElement('option'); o.value = p; o.text = p; selProductor.add(o);
+    });
+    selProductor.value = productores.includes(productorActual) ? productorActual : "Todos";
+
+    selRamo.innerHTML = '<option value="Todos">Ramo: Todos</option>';
+    ramos.forEach(r => {
+      const o = document.createElement('option'); o.value = r; o.text = r; selRamo.add(o);
+    });
+    selRamo.value = ramos.includes(ramoActual) ? ramoActual : "Todos";
+  }
+
+  function filtrarTablaPolizasGeneral() {
+    aplicarFiltrosPolizas();
+  }
+
+  function limpiarFiltrosPolizas() {
+    document.getElementById('buscador-poliza').value = "";
+    document.getElementById('filtro-productor-polizas').value = "Todos";
+    document.getElementById('filtro-ramo-polizas').value = "Todos";
+    aplicarFiltrosPolizas();
+  }
+
+  function aplicarFiltrosPolizas() {
+    const texto = document.getElementById('buscador-poliza').value.toLowerCase().trim();
+    const productor = document.getElementById('filtro-productor-polizas').value;
+    const ramo = document.getElementById('filtro-ramo-polizas').value;
+
+    const filtradas = cachePolizasGeneral.filter(p => {
+      if (productor !== "Todos" && p.productor !== productor) return false;
+      if (ramo !== "Todos" && p.ramo !== ramo) return false;
+
+      if (texto !== "") {
+        const campoBusqueda = [p.poliza, p.clienteNombre, p.productor, p.cia].join(" ");
+        if (!coincideBusquedaCliente(campoBusqueda, texto)) return false;
+      }
+
+      return true;
+    });
+
+    paginaActualPolizas = 1;
+    renderTablaPolizasGeneral(filtradas);
+  }
+
+  function cambiarPaginaPolizas(direccion) {
+    paginaActualPolizas += direccion;
+    renderTablaPolizasGeneral(cachePolizasFiltradasActuales);
+  }
+
+  let cachePolizasFiltradasActuales = [];
+
+  function renderTablaPolizasGeneral(lista) {
+    cachePolizasFiltradasActuales = lista;
+    const tbody = document.getElementById('cuerpo-tabla-polizas-general');
+    tbody.innerHTML = '';
+
+    if (!lista || lista.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--secondary);">No se encontraron pólizas</td></tr>`;
+      document.getElementById('texto-paginacion-polizas').innerText = 'Página 1 de 1';
+      document.getElementById('btn-pagina-anterior-polizas').disabled = true;
+      document.getElementById('btn-pagina-siguiente-polizas').disabled = true;
+      return;
+    }
+
+    const totalPaginas = Math.max(1, Math.ceil(lista.length / TAMANO_PAGINA_POLIZAS));
+    if (paginaActualPolizas > totalPaginas) paginaActualPolizas = totalPaginas;
+    if (paginaActualPolizas < 1) paginaActualPolizas = 1;
+
+    const inicio = (paginaActualPolizas - 1) * TAMANO_PAGINA_POLIZAS;
+    const paginaDeItems = lista.slice(inicio, inicio + TAMANO_PAGINA_POLIZAS);
+
+    paginaDeItems.forEach(p => {
+      const tr = document.createElement('tr');
+      const nombreCliente = p.idCliente
+        ? `<a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${p.idCliente}'); return false;">${p.clienteNombre}</a>`
+        : `<span style="color:var(--secondary);" title="No se encontró un cliente vinculado por matrícula">${p.clienteNombre}</span>`;
+      const badge = p.pendiente
+        ? ' <span style="background:#fef3c7; color:#92400e; font-size:10px; padding:2px 6px; border-radius:8px; font-weight:600;">PENDIENTE</span>'
+        : '';
+
+      tr.innerHTML = `
+        <td>${p.productor || ''}</td>
+        <td style="font-weight:500; color:var(--zoho-nav);">${p.ramo || '-'}${badge}</td>
+        <td>${p.poliza || ''}</td>
+        <td>${nombreCliente}</td>
+        <td>${p.cia || ''}</td>
+        <td>${p.ultimaFecha || ''}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('texto-paginacion-polizas').innerText = `Página ${paginaActualPolizas} de ${totalPaginas}`;
+    document.getElementById('btn-pagina-anterior-polizas').disabled = (paginaActualPolizas <= 1);
+    document.getElementById('btn-pagina-siguiente-polizas').disabled = (paginaActualPolizas >= totalPaginas);
+  }
+
+  // =========================================================================
+  // MÓDULO SINIESTROS
+  // =========================================================================
+  let cacheSiniestros = [];
+
+  function uiConsultarSiniestros() {
+    const tbody = document.getElementById('cuerpo-tabla-siniestros');
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">Buscando siniestros...</td></tr>`;
+
+    google.script.run
+      .withSuccessHandler(lista => {
+        cacheSiniestros = lista;
+        poblarFiltrosSiniestros(lista);
+        aplicarFiltrosSiniestros();
+      })
+      .withFailureHandler(error => {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--danger);">Error al buscar siniestros: ${error.message}</td></tr>`;
+      })
+      .obtenerSiniestros();
+  }
+
+  function poblarFiltrosSiniestros(lista) {
+    const selResponsable = document.getElementById('filtro-responsable-siniestros');
+    const selRamo = document.getElementById('filtro-ramo-siniestros');
+    const responsableActual = selResponsable.value || "Todos";
+    const ramoActual = selRamo.value || "Todos";
+
+    const responsables = [...new Set(lista.map(s => s.responsable).filter(r => r))].sort();
+    const ramos = [...new Set(lista.map(s => s.ramo).filter(r => r))].sort();
+
+    selResponsable.innerHTML = '<option value="Todos">Responsable: Todos</option>';
+    responsables.forEach(r => {
+      const o = document.createElement('option'); o.value = r; o.text = r; selResponsable.add(o);
+    });
+    selResponsable.value = responsables.includes(responsableActual) ? responsableActual : "Todos";
+
+    selRamo.innerHTML = '<option value="Todos">Ramo: Todos</option>';
+    ramos.forEach(r => {
+      const o = document.createElement('option'); o.value = r; o.text = r; selRamo.add(o);
+    });
+    selRamo.value = ramos.includes(ramoActual) ? ramoActual : "Todos";
+  }
+
+  function filtrarTablaSiniestros() {
+    aplicarFiltrosSiniestros();
+  }
+
+  function limpiarFiltrosSiniestros() {
+    document.getElementById('buscador-siniestro').value = "";
+    document.getElementById('filtro-responsable-siniestros').value = "Todos";
+    document.getElementById('filtro-ramo-siniestros').value = "Todos";
+    aplicarFiltrosSiniestros();
+  }
+
+  function aplicarFiltrosSiniestros() {
+    const texto = document.getElementById('buscador-siniestro').value.toLowerCase().trim();
+    const responsable = document.getElementById('filtro-responsable-siniestros').value;
+    const ramo = document.getElementById('filtro-ramo-siniestros').value;
+
+    const filtradas = cacheSiniestros.filter(s => {
+      if (responsable !== "Todos" && s.responsable !== responsable) return false;
+      if (ramo !== "Todos" && s.ramo !== ramo) return false;
+
+      if (texto !== "") {
+        const campoBusqueda = [s.numeroSiniestro, s.clienteNombre, s.ramo, s.compania, s.descripcion].join(" ");
+        if (!coincideBusquedaCliente(campoBusqueda, texto)) return false;
+      }
+
+      return true;
+    });
+
+    renderTablaSiniestros(filtradas);
+  }
+
+  function renderTablaSiniestros(lista) {
+    const tbody = document.getElementById('cuerpo-tabla-siniestros');
+    tbody.innerHTML = '';
+
+    if (!lista || lista.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">No se encontraron siniestros</td></tr>`;
+      return;
+    }
+
+    const copia = [...lista].sort((a, b) => new Date(b.vencimiento) - new Date(a.vencimiento));
+
+    copia.forEach(s => {
+      const tr = document.createElement('tr');
+      const jsonStr = encodeURIComponent(JSON.stringify(s));
+      const fVencim = s.vencimiento ? s.vencimiento.split('-').reverse().join('/') : '';
+
+      tr.innerHTML = `
+        <td>
+          <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
+        </td>
+        <td>${s.creacion || ''}</td>
+        <td style="font-weight:600;">${fVencim}</td>
+        <td>
+          <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${s.idCliente}'); return false;">
+            ${s.clienteNombre}
+          </a>
+        </td>
+        <td>${s.compania || ''}</td>
+        <td style="font-weight:500; color:var(--zoho-nav);">${s.ramo || '-'}</td>
+        <td>${s.numeroSiniestro || ''}</td>
+        <td><span class="texto-descripcion" title="${s.descripcion || ''}">${s.descripcion || ''}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
   }
 
   // --- Listado general del módulo Renovaciones ---
