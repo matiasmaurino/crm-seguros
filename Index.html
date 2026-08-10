@@ -240,7 +240,12 @@
                 </div>
                 <div class="field-group" style="flex:1; min-width:140px; margin-bottom:0;">
                   <label>Productor</label>
-                  <input type="text" id="poliza-manual-productor" disabled>
+                  <select id="poliza-manual-productor" disabled>
+                    <option value="">-- Seleccione --</option>
+                    <option value="Mariana">Mariana</option>
+                    <option value="Matias">Matias</option>
+                    <option value="Daniel">Daniel</option>
+                  </select>
                 </div>
                 <div class="field-group" style="margin-bottom:0;">
                   <label style="visibility:hidden;">.</label>
@@ -255,7 +260,7 @@
               <div class="table-wrapper" id="wrapper-tabla-polizas" style="margin-top:0; margin-bottom:20px; display:none;">
                 <table>
                   <thead>
-                    <tr><th></th><th>Cía</th><th>Ramo</th><th>N° Póliza</th><th>Último Movimiento</th><th>Prima</th><th>Premio</th><th>Comisión</th></tr>
+                    <tr><th></th><th>Cía</th><th>Ramo</th><th>N° Póliza</th><th>Último Movimiento</th><th>Cuota Pagada</th><th>Comisión</th><th>% Comisión</th></tr>
                   </thead>
                   <tbody id="cuerpo-tabla-polizas"></tbody>
                 </table>

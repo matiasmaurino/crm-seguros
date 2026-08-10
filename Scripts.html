@@ -124,7 +124,7 @@
           <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
         </td>
         <td>${fCreacion}</td>
-        <td style="font-weight:600;">${fVencim}</td>
+        <td style="${estiloVencimientoTarea(t.vencimiento)}">${fVencim}</td>
         <td>
           <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${t.idCliente}'); return false;">
             ${t.clienteNombre}
@@ -359,7 +359,7 @@
           <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
         </td>
         <td>${fCreacion}</td>
-        <td style="font-weight:600;">${fVencim}</td>
+        <td style="${estiloVencimientoTarea(t.vencimiento)}">${fVencim}</td>
         <td>
           <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${t.idCliente}'); return false;">
             ${t.clienteNombre}
@@ -714,6 +714,19 @@
   // Busca por palabras sueltas en cualquier orden: "MATIAS MAU" matchea
   // "MAURINO MATIAS" (antes exigía la frase completa como bloque, en el
   // mismo orden en que la tipeabas, y por eso fallaba con Apellido Nombre).
+  // Devuelve el estilo inline para la celda de Vencimiento: rojo y en negrita
+  // si la fecha ya pasó (vencida), el estilo normal si no.
+  function estiloVencimientoTarea(fechaISO) {
+    if (!fechaISO) return 'font-weight:600;';
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const fVenc = new Date(fechaISO + "T00:00:00");
+    if (fVenc instanceof Date && !isNaN(fVenc) && fVenc < hoy) {
+      return 'font-weight:700; color:var(--danger);';
+    }
+    return 'font-weight:600;';
+  }
+
   function coincideBusquedaCliente(nombre, query) {
     const palabras = query.toLowerCase().trim().split(/\s+/).filter(p => p.length > 0);
     if (palabras.length === 0) return true;
@@ -797,6 +810,14 @@
       .obtenerPolizasPorCliente(idCliente);
   }
 
+  // Comisión / Premio, expresado en porcentaje. Vacío si no hay datos numéricos.
+  function calcularPorcentajeComision(premio, comision) {
+    const p = parseFloat(premio);
+    const c = parseFloat(comision);
+    if (!p || isNaN(p) || isNaN(c)) return '';
+    return ((c / p) * 100).toFixed(2) + '%';
+  }
+
   function renderPolizasCliente(lista) {
     const cuerpo = document.getElementById('cuerpo-tabla-polizas');
     const wrapper = document.getElementById('wrapper-tabla-polizas');
@@ -819,15 +840,16 @@
       const btnBorrar = p.pendiente
         ? `<button type="button" class="btn-icon" title="Eliminar carga manual" onclick="eliminarPolizaManualUI(${p.idFilaManual}, '${idCliente}')">🗑️</button>`
         : '';
+      const porcentajeComision = calcularPorcentajeComision(p.premio, p.comision);
       tr.innerHTML = `
         <td>${btnBorrar}</td>
         <td>${p.cia || ''}</td>
         <td style="font-weight:500; color:var(--zoho-nav);">${p.ramo || '-'}${badge}</td>
         <td>${p.poliza || ''}</td>
         <td>${p.ultimaFecha || ''}</td>
-        <td>${p.prima || ''}</td>
         <td>${p.premio || ''}</td>
         <td>${p.comision || ''}</td>
+        <td>${porcentajeComision}</td>
       `;
       cuerpo.appendChild(tr);
     });
@@ -963,7 +985,7 @@
       if (ramo !== "Todos" && p.ramo !== ramo) return false;
 
       if (texto !== "") {
-        const campoBusqueda = [p.poliza, p.clienteNombre, p.productor, p.cia].join(" ");
+        const campoBusqueda = [p.poliza, p.clienteNombre, p.cia].join(" ");
         if (!coincideBusquedaCliente(campoBusqueda, texto)) return false;
       }
 
@@ -1109,7 +1131,7 @@
       return;
     }
 
-    const copia = [...lista].sort((a, b) => new Date(b.vencimiento) - new Date(a.vencimiento));
+    const copia = [...lista].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
 
     copia.forEach(s => {
       const tr = document.createElement('tr');
@@ -1121,7 +1143,7 @@
           <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
         </td>
         <td>${s.creacion || ''}</td>
-        <td style="font-weight:600;">${fVencim}</td>
+        <td style="${estiloVencimientoTarea(s.vencimiento)}">${fVencim}</td>
         <td>
           <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${s.idCliente}'); return false;">
             ${s.clienteNombre}
