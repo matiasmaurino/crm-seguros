@@ -1193,7 +1193,7 @@
           mensajeEl.innerText = "Archivo subido. Procesando filas...";
           google.script.run
             .withSuccessHandler(resultado => {
-              mensajeEl.innerText = "Listo: se crearon " + resultado.tareasCreadas + " tareas nuevas (" + resultado.omitidas + " pólizas ya estaban cargadas).";
+              mensajeEl.innerText = "Listo: se crearon " + resultado.tareasCreadas + " tareas nuevas (" + resultado.omitidas + " pólizas ya estaban cargadas, " + resultado.noBase + " eran endosos/movimientos no base y se saltearon).";
               input.value = "";
               btn.disabled = false;
               uiConsultarVencimientosFP();
@@ -1256,7 +1256,7 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${h.fechaImportacion || ''}</td>
-        <td>${h.responsable || ''}</td>
+        <td>${h.productor || ''}</td>
         <td>${h.cantidad || ''}</td>
         <td>${h.desde || ''}</td>
         <td>${h.hasta || ''}</td>

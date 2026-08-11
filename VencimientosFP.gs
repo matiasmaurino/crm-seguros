@@ -68,20 +68,22 @@ function obtenerMapaRamoFP() {
  * con la cantidad y el rango de fechas de vencimiento real de póliza
  * (Vig. Hasta) que cubrió la tanda importada.
  */
-function registrarImportacionVencimientosFP(ss, statsPorResponsable) {
+function registrarImportacionVencimientosFP(ss, statsPorProductor) {
   let hoja = ss.getSheetByName("REGISTRO_VENCIMIENTOS_FP");
   if (!hoja) {
     hoja = ss.insertSheet("REGISTRO_VENCIMIENTOS_FP");
-    hoja.appendRow(["Fecha de Importación", "Responsable", "Cantidad de Tareas", "Vencimiento Más Antiguo", "Vencimiento Más Reciente"]);
+  }
+  if (hoja.getLastRow() === 0) {
+    hoja.appendRow(["Fecha de Importación", "Productor", "Cantidad de Tareas", "Vencimiento Más Antiguo", "Vencimiento Más Reciente"]);
   }
 
   const ahora = new Date();
-  Object.keys(statsPorResponsable).forEach(responsable => {
-    const stats = statsPorResponsable[responsable];
+  Object.keys(statsPorProductor).forEach(productor => {
+    const stats = statsPorProductor[productor];
     if (stats.cantidad === 0) return;
     hoja.appendRow([
       ahora,
-      responsable,
+      productor,
       stats.cantidad,
       stats.minFecha,
       stats.maxFecha
@@ -105,15 +107,20 @@ function obtenerHistorialVencimientosFP() {
   if (!hoja) return [];
 
   const data = hoja.getDataRange().getValues();
-  if (data.length <= 1) return [];
+  if (data.length === 0) return [];
 
-  return data.slice(1).map(fila => {
+  // No asumimos por posición que la fila 1 es encabezado: lo detectamos
+  // mirando si la primera celda es una fecha real (dato) o texto (título).
+  const primeraEsEncabezado = data[0][0] === "" || !(data[0][0] instanceof Date);
+  const filas = primeraEsEncabezado ? data.slice(1) : data;
+
+  return filas.map(fila => {
     const fechaImport = (fila[0] instanceof Date) ? Utilities.formatDate(fila[0], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy HH:mm") : "";
     const desde = (fila[3] instanceof Date) ? Utilities.formatDate(fila[3], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy") : "";
     const hasta = (fila[4] instanceof Date) ? Utilities.formatDate(fila[4], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy") : "";
     return {
       fechaImportacion: fechaImport,
-      responsable: fila[1],
+      productor: fila[1],
       cantidad: fila[2],
       desde: desde,
       hasta: hasta
@@ -166,11 +173,9 @@ function procesarVencimientosFP() {
 
   const filasNuevas = [];
   let filasOmitidas = 0;
+  let filasSufijoInvalido = 0;
   const mapaRamoFP = obtenerMapaRamoFP();
-  const statsPorResponsable = {
-    "Matias": { cantidad: 0, minFecha: null, maxFecha: null },
-    "Mauro": { cantidad: 0, minFecha: null, maxFecha: null }
-  };
+  const statsPorProductor = {}; // se arma solo, una clave por cada Productor real que aparezca en el CSV
 
   archivosCSV.forEach(file => {
     const csvData = Utilities.parseCsv(file.getBlob().getDataAsString('UTF-8'));
@@ -186,8 +191,20 @@ function procesarVencimientosFP() {
       const modeloTexto = (fila[9] || "").toString().trim();     // Ramo/Modelo (en realidad es la descripción del vehículo/bien)
       const productor = (fila[15] || "").toString().trim().toUpperCase(); // Productor
 
-      if (!poliza || polizasYaCreadas.has(poliza)) {
-        if (poliza) filasOmitidas++;
+      if (!poliza) continue;
+
+      // Solo importamos el movimiento base de la póliza (termina en "/0").
+      // Los que terminan en "/1", "/2", "/10", etc. son endosos o
+      // movimientos posteriores de la misma póliza, no se cargan.
+      const partesPoliza = poliza.split("/");
+      const sufijoMovimiento = partesPoliza[partesPoliza.length - 1].trim();
+      if (sufijoMovimiento !== "0") {
+        filasSufijoInvalido++;
+        continue;
+      }
+
+      if (polizasYaCreadas.has(poliza)) {
+        filasOmitidas++;
         continue;
       }
 
@@ -227,8 +244,14 @@ function procesarVencimientosFP() {
       polizasYaCreadas.add(poliza); // por si la misma póliza aparece 2 veces en el mismo CSV
 
       // Vamos guardando el rango de fechas de vencimiento real (Vig. Hasta)
-      // que se importó para cada responsable, para el registro persistente.
-      const stats = statsPorResponsable[responsable];
+      // que se importó para cada Productor real (tal cual viene en el CSV),
+      // para el registro persistente — cada archivo suele traer un solo
+      // Productor, así que esto queda más trazable que agrupar por
+      // Responsable interno (Matias/Mauro).
+      if (!statsPorProductor[productor]) {
+        statsPorProductor[productor] = { cantidad: 0, minFecha: null, maxFecha: null };
+      }
+      const stats = statsPorProductor[productor];
       stats.cantidad++;
       if (!stats.minFecha || vigHasta < stats.minFecha) stats.minFecha = vigHasta;
       if (!stats.maxFecha || vigHasta > stats.maxFecha) stats.maxFecha = vigHasta;
@@ -249,13 +272,14 @@ function procesarVencimientosFP() {
       }
     });
 
-    registrarImportacionVencimientosFP(ss, statsPorResponsable);
+    registrarImportacionVencimientosFP(ss, statsPorProductor);
   }
 
   return {
     exito: true,
     tareasCreadas: filasNuevas.length,
-    omitidas: filasOmitidas
+    omitidas: filasOmitidas,
+    noBase: filasSufijoInvalido
   };
 }
 
@@ -268,65 +292,5 @@ function obtenerVencimientosFP() {
   return todasLasTareas.filter(t =>
     (t.tipoTarea || "").toString().trim().toLowerCase() === "renovacion" &&
     (t.compania || "").toString().trim().toLowerCase() === "federación patronal"
-  );
-}
-
-/**
- * EJECUTAR MANUALMENTE UNA SOLA VEZ: corrige el Ramo de las tareas de
- * Vencimientos FP que ya se crearon con el nombre del vehículo/bien en vez
- * de la categoría real (bug ya corregido en procesarVencimientosFP() para
- * las importaciones nuevas). Recorre TAREAS, y para cada tarea de tipo
- * "Renovacion" y Compañía "Federación Patronal" con N° de Póliza cargado
- * (columna P), recalcula el Ramo correcto vía el código antes de la
- * primera "/" de la Póliza + el mapeo de la hoja AUX, y lo pisa en la
- * columna O si es distinto al que ya tenía.
- */
-function corregirRamoVencimientosFP() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hojaTareas = ss.getSheetByName("TAREAS");
-  if (!hojaTareas) {
-    Logger.log("No se encontró la hoja TAREAS.");
-    return;
-  }
-
-  const mapaRamoFP = obtenerMapaRamoFP();
-  if (Object.keys(mapaRamoFP).length === 0) {
-    Logger.log("No se pudo armar el mapa de Ramo desde la hoja AUX. No se corrigió nada.");
-    return;
-  }
-
-  const ultimaFila = hojaTareas.getLastRow();
-  if (ultimaFila < 2) return;
-
-  const datos = hojaTareas.getRange(2, 1, ultimaFila - 1, 16).getValues();
-  let corregidas = 0;
-  let sinCodigoValido = 0;
-
-  for (let i = 0; i < datos.length; i++) {
-    const compania = (datos[i][2] || "").toString().trim().toLowerCase();  // Columna C
-    const tipoTarea = (datos[i][3] || "").toString().trim().toLowerCase(); // Columna D
-    const poliza = (datos[i][15] || "").toString().trim();                  // Columna P
-
-    if (tipoTarea !== "renovacion" || compania !== "federación patronal" || !poliza) continue;
-
-    const codigoRamo = poliza.split("/")[0].trim();
-    const ramoCorrecto = mapaRamoFP[codigoRamo] || "";
-
-    if (!ramoCorrecto) {
-      sinCodigoValido++;
-      continue;
-    }
-
-    const ramoActual = (datos[i][14] || "").toString().trim(); // Columna O
-    if (ramoCorrecto !== ramoActual) {
-      const filaReal = i + 2;
-      hojaTareas.getRange(filaReal, 15).setValue(ramoCorrecto); // Columna O
-      corregidas++;
-    }
-  }
-
-  Logger.log(
-    "Corrección de Ramo completa. Tareas corregidas: " + corregidas +
-    ". Tareas con código de Ramo no encontrado en AUX: " + sinCodigoValido
   );
 }
