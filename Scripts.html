@@ -315,6 +315,9 @@
     if(id === 'siniestros') {
       uiConsultarSiniestros();
     }
+    if(id === 'vencimientos-fp') {
+      uiConsultarVencimientosFP();
+    }
   }
 
   // =========================================================================
@@ -1153,6 +1156,199 @@
         <td style="font-weight:500; color:var(--zoho-nav);">${s.ramo || '-'}</td>
         <td>${s.numeroSiniestro || ''}</td>
         <td><span class="texto-descripcion" title="${s.descripcion || ''}">${s.descripcion || ''}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // =========================================================================
+  // MÓDULO VENCIMIENTOS FP
+  // =========================================================================
+  let cacheVencimientosFP = [];
+
+  function subirYProcesarVencimientosFP() {
+    const input = document.getElementById('vencimientos-fp-archivo');
+    const archivo = input.files[0];
+    const mensajeEl = document.getElementById('mensaje-vencimientos-fp');
+
+    if (!archivo) {
+      mensajeEl.innerText = "Elegí un archivo CSV primero.";
+      return;
+    }
+
+    const btn = document.getElementById('btn-procesar-vencimientos-fp');
+    btn.disabled = true;
+    mensajeEl.innerText = "Subiendo archivo...";
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64 = e.target.result;
+      google.script.run
+        .withSuccessHandler(resultadoSubida => {
+          if (!resultadoSubida.exito) {
+            mensajeEl.innerText = "Error al subir: " + resultadoSubida.mensaje;
+            btn.disabled = false;
+            return;
+          }
+          mensajeEl.innerText = "Archivo subido. Procesando filas...";
+          google.script.run
+            .withSuccessHandler(resultado => {
+              mensajeEl.innerText = "Listo: se crearon " + resultado.tareasCreadas + " tareas nuevas (" + resultado.omitidas + " pólizas ya estaban cargadas).";
+              input.value = "";
+              btn.disabled = false;
+              uiConsultarVencimientosFP();
+            })
+            .withFailureHandler(error => {
+              mensajeEl.innerText = "Error al procesar: " + error.message;
+              btn.disabled = false;
+            })
+            .procesarVencimientosFP();
+        })
+        .withFailureHandler(error => {
+          mensajeEl.innerText = "Error al subir: " + error.message;
+          btn.disabled = false;
+        })
+        .subirCSVVencimientosFP(base64, archivo.name);
+    };
+    reader.readAsDataURL(archivo);
+  }
+
+  function uiConsultarVencimientosFP() {
+    const tbody = document.getElementById('cuerpo-tabla-vencimientos-fp');
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">Buscando vencimientos...</td></tr>`;
+
+    google.script.run
+      .withSuccessHandler(lista => {
+        cacheVencimientosFP = lista;
+        poblarFiltrosVencimientosFP(lista);
+        aplicarFiltrosVencimientosFP();
+      })
+      .withFailureHandler(error => {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--danger);">Error al buscar vencimientos: ${error.message}</td></tr>`;
+      })
+      .obtenerVencimientosFP();
+
+    cargarHistorialVencimientosFP();
+  }
+
+  function cargarHistorialVencimientosFP() {
+    const tbody = document.getElementById('cuerpo-tabla-historial-vencimientos-fp');
+    google.script.run
+      .withSuccessHandler(historial => {
+        renderHistorialVencimientosFP(historial);
+      })
+      .withFailureHandler(error => {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger);">Error al cargar el historial: ${error.message}</td></tr>`;
+      })
+      .obtenerHistorialVencimientosFP();
+  }
+
+  function renderHistorialVencimientosFP(historial) {
+    const tbody = document.getElementById('cuerpo-tabla-historial-vencimientos-fp');
+    tbody.innerHTML = '';
+
+    if (!historial || historial.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--secondary);">Todavía no se importó ningún archivo</td></tr>`;
+      return;
+    }
+
+    historial.forEach(h => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${h.fechaImportacion || ''}</td>
+        <td>${h.responsable || ''}</td>
+        <td>${h.cantidad || ''}</td>
+        <td>${h.desde || ''}</td>
+        <td>${h.hasta || ''}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function poblarFiltrosVencimientosFP(lista) {
+    const selResponsable = document.getElementById('filtro-responsable-vencimientos-fp');
+    const selRamo = document.getElementById('filtro-ramo-vencimientos-fp');
+    const responsableActual = selResponsable.value || "Todos";
+    const ramoActual = selRamo.value || "Todos";
+
+    const responsables = [...new Set(lista.map(v => v.responsable).filter(r => r))].sort();
+    const ramos = [...new Set(lista.map(v => v.ramo).filter(r => r))].sort();
+
+    selResponsable.innerHTML = '<option value="Todos">Responsable: Todos</option>';
+    responsables.forEach(r => {
+      const o = document.createElement('option'); o.value = r; o.text = r; selResponsable.add(o);
+    });
+    selResponsable.value = responsables.includes(responsableActual) ? responsableActual : "Todos";
+
+    selRamo.innerHTML = '<option value="Todos">Ramo: Todos</option>';
+    ramos.forEach(r => {
+      const o = document.createElement('option'); o.value = r; o.text = r; selRamo.add(o);
+    });
+    selRamo.value = ramos.includes(ramoActual) ? ramoActual : "Todos";
+  }
+
+  function filtrarTablaVencimientosFP() {
+    aplicarFiltrosVencimientosFP();
+  }
+
+  function limpiarFiltrosVencimientosFP() {
+    document.getElementById('buscador-vencimiento-fp').value = "";
+    document.getElementById('filtro-responsable-vencimientos-fp').value = "Todos";
+    document.getElementById('filtro-ramo-vencimientos-fp').value = "Todos";
+    aplicarFiltrosVencimientosFP();
+  }
+
+  function aplicarFiltrosVencimientosFP() {
+    const texto = document.getElementById('buscador-vencimiento-fp').value.toLowerCase().trim();
+    const responsable = document.getElementById('filtro-responsable-vencimientos-fp').value;
+    const ramo = document.getElementById('filtro-ramo-vencimientos-fp').value;
+
+    const filtradas = cacheVencimientosFP.filter(v => {
+      if (responsable !== "Todos" && v.responsable !== responsable) return false;
+      if (ramo !== "Todos" && v.ramo !== ramo) return false;
+
+      if (texto !== "") {
+        const campoBusqueda = [v.numeroSiniestro, v.clienteNombre, v.ramo, v.descripcion].join(" ");
+        if (!coincideBusquedaCliente(campoBusqueda, texto)) return false;
+      }
+
+      return true;
+    });
+
+    renderTablaVencimientosFP(filtradas);
+  }
+
+  function renderTablaVencimientosFP(lista) {
+    const tbody = document.getElementById('cuerpo-tabla-vencimientos-fp');
+    tbody.innerHTML = '';
+
+    if (!lista || lista.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">No se encontraron vencimientos</td></tr>`;
+      return;
+    }
+
+    const copia = [...lista].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
+
+    copia.forEach(v => {
+      const tr = document.createElement('tr');
+      const jsonStr = encodeURIComponent(JSON.stringify(v));
+      const fVencim = v.vencimiento ? v.vencimiento.split('-').reverse().join('/') : '';
+
+      tr.innerHTML = `
+        <td>
+          <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
+        </td>
+        <td>${v.creacion || ''}</td>
+        <td style="${estiloVencimientoTarea(v.vencimiento)}">${fVencim}</td>
+        <td>
+          <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${v.idCliente}'); return false;">
+            ${v.clienteNombre}
+          </a>
+        </td>
+        <td>${v.compania || ''}</td>
+        <td style="font-weight:500; color:var(--zoho-nav);">${v.ramo || '-'}</td>
+        <td>${v.numeroSiniestro || ''}</td>
+        <td><span class="texto-descripcion" title="${v.descripcion || ''}">${v.descripcion || ''}</span></td>
       `;
       tbody.appendChild(tr);
     });
