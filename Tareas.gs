@@ -41,7 +41,7 @@ function obtenerTareas() {
       ramo: r[14] || "",
       usuario: r[12] || "-"
     };
-  }).filter(t => t.compania !== "").reverse(); 
+  }).filter(t => t.compania !== "" && t.estado !== "Eliminada").reverse(); 
 }
 
 function guardarTarea(t, usuarioActivo) {
@@ -137,16 +137,40 @@ function guardarTarea(t, usuarioActivo) {
   }
 }
 
-function eliminarTareaEnServidor(idFila) {
+/**
+ * Elimina "blandamente" una tarea: en vez de borrar la fila con deleteRow()
+ * (una operación estructural que corre todas las filas de abajo hacia
+ * arriba, muy pesada en una hoja grande — probablemente la causa de que a
+ * veces se quedara trabada procesando), simplemente le pone Estado =
+ * "Eliminada". obtenerTareas() ya filtra ese estado, así que deja de verse
+ * en Historial Tareas, Siniestros, Vencimientos FP, etc. sin necesidad de
+ * tocar la estructura de la hoja. La fila queda en TAREAS por si hace
+ * falta auditarla después.
+ */
+function marcarTareaComoEliminada(idFila) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const hoja = ss.getSheetByName("TAREAS");
-  
+  if (!hoja) throw new Error("No se encontró la hoja TAREAS");
+
   const filaNumero = Number(idFila);
-  
-  if (filaNumero > 1 && filaNumero <= hoja.getLastRow()) {
-    hoja.deleteRow(filaNumero);
-    return { exito: true };
-  } else {
+  if (filaNumero <= 1 || filaNumero > hoja.getLastRow()) {
     throw new Error("Número de fila inválido para eliminar.");
   }
+
+  hoja.getRange(filaNumero, 7).setValue("Eliminada"); // Columna G: Estado
+
+  // Intento best-effort de borrar el evento de Calendar asociado, si tenía.
+  // Envuelto en try/catch para que un problema acá nunca bloquee la
+  // eliminación de la tarea en sí.
+  try {
+    const idEvento = (hoja.getRange(filaNumero, 9).getValue() || "").toString().trim(); // Columna I
+    if (idEvento) {
+      const evento = CalendarApp.getEventById(idEvento);
+      if (evento) evento.deleteEvent();
+    }
+  } catch (e) {
+    Logger.log("No se pudo borrar el evento de Calendar de la tarea eliminada (fila " + filaNumero + "): " + e.toString());
+  }
+
+  return { exito: true };
 }

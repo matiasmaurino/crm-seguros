@@ -93,6 +93,20 @@
   /**
    * Dibuja la tabla del Historial respetando estrictamente las columnas de tu Index.html
    */
+  function eliminarTareaDesdeListado(idFila) {
+    if (!confirm("¿Eliminar esta tarea?")) return;
+
+    google.script.run
+      .withSuccessHandler(() => {
+        mostrarMensajeExito("Tarea eliminada");
+        uiConsultarTareas();
+      })
+      .withFailureHandler(error => {
+        mostrarMensajeExito("Error al eliminar: " + error.message);
+      })
+      .marcarTareaComoEliminada(idFila);
+  }
+
   function renderTablaFiltradaDirecta(lista) {
     const tbody = document.getElementById('cuerpo-tabla');
     if (!tbody) return;
@@ -122,6 +136,7 @@
       tr.innerHTML = `
         <td>
           <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
+          <button type="button" class="btn-icon" title="Eliminar Tarea" onclick="eliminarTareaDesdeListado(${t.id_fila})" style="color:var(--danger);">✕</button>
         </td>
         <td>${fCreacion}</td>
         <td style="${estiloVencimientoTarea(t.vencimiento)}">${fVencim}</td>
@@ -454,27 +469,6 @@
 
     document.getElementById('tarea-desc').value = t.descripcion;
     document.getElementById('nombre-cliente-tarea-cabecera').innerText = t.clienteNombre.toUpperCase();
-    
-    document.getElementById('btn-eliminar-tarea').style.display = 'inline-block';
-  }
-
-  function uiEliminarTarea() {
-    const idFila = document.getElementById('tarea-id-fila').value;
-    if (!idFila) return;
-
-    const confirmar = confirm("Confirme si desea eliminar esta tarea");
-    if (confirmar) {
-      const btnEliminar = document.getElementById('btn-eliminar-tarea');
-      btnEliminar.disabled = true;
-      btnEliminar.innerText = "Eliminando...";
-
-      google.script.run.withSuccessHandler(r => {
-        mostrarMensajeExito("Tarea eliminada con éxito");
-        limpiarFormTarea();
-        const btnConsulta = document.querySelector('button[onclick*="consulta"]');
-        mostrarSeccion('consulta', btnConsulta);
-      }).eliminarTareaEnServidor(idFila);
-    }
   }
 
   function filtrarPorEstado(estado) {
@@ -502,7 +496,6 @@
     document.getElementById('nombre-cliente-tarea-cabecera').innerText = "";
     document.getElementById('btn-guardar-tarea').disabled = false;
     document.getElementById('btn-guardar-tarea').innerText = "Guardar Tarea";
-    document.getElementById('btn-eliminar-tarea').style.display = 'none';
   }
 
   function actualizarNombreCabeceraTarea() {
