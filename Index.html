@@ -28,10 +28,12 @@
           <button id="nav-nueva-tarea" onclick="mostrarSeccion('tareas', this)" class="nav-item">Nueva Tarea</button>
           <button id="nav-polizas" onclick="mostrarSeccion('polizas', this)" class="nav-item">Pólizas</button>
           <button id="nav-siniestros" onclick="mostrarSeccion('siniestros', this)" class="nav-item">Siniestros</button>
-          <button id="nav-vencimientos-fp" onclick="mostrarSeccion('vencimientos-fp', this)" class="nav-item">Vencimientos FP</button>
+          <button id="nav-cobranzas" onclick="mostrarSeccion('cobranzas', this)" class="nav-item">Cobranzas</button>
+          <button id="nav-vencimientos-fp" onclick="mostrarSeccion('vencimientos-fp', this)" class="nav-item">Vencimientos</button>
           <button id="nav-historial-cliente" onclick="mostrarSeccion('historial-cliente', this)" class="nav-item" style="display: none;">Historial Cliente</button>
           <button id="nav-clientes" onclick="mostrarSeccion('clientes', this)" class="nav-item">Clientes</button>
           <button id="nav-renovaciones" onclick="mostrarSeccion('renovaciones', this)" class="nav-item" style="display: none;">Renovaciones</button>
+          <button id="nav-importar" onclick="mostrarSeccion('importar', this)" class="nav-item">Importar</button>
         </nav>
       </header>
 
@@ -142,35 +144,41 @@
             </div>
           </div>
 
-          <div id="vencimientos-fp" class="modulo">
+          <div id="cobranzas" class="modulo">
             <div class="header-modulo">
-              <h2>Vencimientos FP</h2>
+              <h2>Cobranzas</h2>
             </div>
+            <div class="table-controls" style="flex-direction: column; align-items: flex-start;">
+              <input type="text" id="buscador-cobranza" placeholder="Buscar por cliente, ramo..." onkeyup="filtrarTablaCobranzas()" style="width: 100%; margin-bottom: 12px;">
+              <div style="width: 100%; border-bottom: 1px solid #eee; margin-bottom: 12px;"></div>
 
-            <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:8px; flex-wrap: wrap;">
-              <div class="field-group" style="flex:1; min-width:250px; margin-bottom:0;">
-                <label>Adjuntar CSV de Vencimientos FP</label>
-                <input type="file" id="vencimientos-fp-archivo" accept=".csv">
-              </div>
-              <div class="field-group" style="margin-bottom:0;">
-                <label style="visibility:hidden;">.</label>
-                <button type="button" id="btn-procesar-vencimientos-fp" class="btn-principal" style="height: 38px; padding: 0 20px;" onclick="subirYProcesarVencimientosFP()">
-                  Subir y Procesar
+              <div class="filter-buttons" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <button onclick="limpiarFiltrosCobranzas()" class="btn-limpiar" style="background-color: #6c757d; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                  Limpiar Filtros
                 </button>
+                <select id="filtro-responsable-cobranzas" onchange="aplicarFiltrosCobranzas()" class="form-select" style="width: auto;">
+                  <option value="Todos">Responsable: Todos</option>
+                </select>
+                <select id="filtro-ramo-cobranzas" onchange="aplicarFiltrosCobranzas()" class="form-select" style="width: auto;">
+                  <option value="Todos">Ramo: Todos</option>
+                </select>
               </div>
             </div>
-            <div id="mensaje-vencimientos-fp" style="color:var(--secondary); font-size:13px; margin-bottom:15px;"></div>
 
-            <div class="section-title" style="margin-top:0;">Historial de importaciones</div>
-            <div class="table-wrapper" style="margin-top:0; margin-bottom:15px;">
+            <div class="table-wrapper">
               <table>
                 <thead>
-                  <tr><th>Fecha de Importación</th><th>Productor</th><th>Cantidad</th><th>Vencimiento Desde</th><th>Vencimiento Hasta</th></tr>
+                  <tr><th></th><th>Creación</th><th>Vencimiento</th><th>Cliente</th><th>Cía</th><th>Ramo</th><th>Descripción</th></tr>
                 </thead>
-                <tbody id="cuerpo-tabla-historial-vencimientos-fp"></tbody>
+                <tbody id="cuerpo-tabla-cobranzas"></tbody>
               </table>
             </div>
-            <div style="width: 100%; border-bottom: 1px solid #eee; margin-bottom: 15px;"></div>
+          </div>
+
+          <div id="vencimientos-fp" class="modulo">
+            <div class="header-modulo">
+              <h2>Vencimientos</h2>
+            </div>
 
             <div class="table-controls" style="flex-direction: column; align-items: flex-start;">
               <input type="text" id="buscador-vencimiento-fp" placeholder="Buscar por N° de póliza, cliente, ramo..." onkeyup="filtrarTablaVencimientosFP()" style="width: 100%; margin-bottom: 12px;">
@@ -420,6 +428,7 @@
                   <select id="tarea-estado">
                     <option value="Sin leer">Sin leer</option>
                     <option value="En proceso">En proceso</option>
+                    <option value="Control">Control</option>
                     <option value="Terminado">Terminado</option>
                   </select>
                 </div>
@@ -453,7 +462,17 @@
 
               <div class="field-group" style="margin-top:15px;">
                 <label>Descripción / Detalle</label>
-                <textarea id="tarea-desc" rows="4"></textarea>
+                <textarea id="tarea-desc" rows="10"></textarea>
+              </div>
+
+              <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:15px;">
+                <div class="field-group" style="flex:1; margin-bottom:0;">
+                  <label>Agregar Comentario</label>
+                  <input type="text" id="tarea-nuevo-comentario" placeholder="Escribí un comentario nuevo...">
+                </div>
+                <button type="button" class="btn-principal" style="height: 38px; padding: 0 20px;" onclick="agregarComentarioTarea()">
+                  Agregar Comentario
+                </button>
               </div>
 
               <div class="field-group" style="margin-top:15px;">
@@ -513,9 +532,120 @@
             </div>
           </div>
 
+          <div id="importar" class="modulo">
+            <div class="header-modulo">
+              <h2>Importar</h2>
+            </div>
+
+            <div class="section-title" style="margin-top:0;">Vencimientos FP</div>
+            <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:8px; flex-wrap: wrap;">
+              <div class="field-group" style="flex:1; min-width:250px; margin-bottom:0;">
+                <label>Adjuntar CSV de Vencimientos FP</label>
+                <input type="file" id="vencimientos-fp-archivo" accept=".csv">
+              </div>
+              <div class="field-group" style="margin-bottom:0;">
+                <label style="visibility:hidden;">.</label>
+                <button type="button" id="btn-procesar-vencimientos-fp" class="btn-principal" style="height: 38px; padding: 0 20px;" onclick="subirYProcesarVencimientosFP()">
+                  Subir y Procesar
+                </button>
+              </div>
+            </div>
+            <div id="mensaje-vencimientos-fp" style="color:var(--secondary); font-size:13px; margin-bottom:15px;"></div>
+            <div class="table-wrapper" style="margin-top:0; margin-bottom:25px;">
+              <table>
+                <thead>
+                  <tr><th>Fecha de Importación</th><th>Productor</th><th>Cantidad</th><th>Vencimiento Desde</th><th>Vencimiento Hasta</th></tr>
+                </thead>
+                <tbody id="cuerpo-tabla-historial-vencimientos-fp"></tbody>
+              </table>
+            </div>
+
+            <div class="section-title">Clientes FP</div>
+            <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:8px; flex-wrap: wrap;">
+              <div class="field-group" style="flex:1; min-width:250px; margin-bottom:0;">
+                <label>Adjuntar CSV del padrón de Clientes FP</label>
+                <input type="file" id="clientes-fp-archivo" accept=".csv">
+              </div>
+              <div class="field-group" style="margin-bottom:0;">
+                <label style="visibility:hidden;">.</label>
+                <button type="button" id="btn-procesar-clientes-fp" class="btn-principal" style="height: 38px; padding: 0 20px;" onclick="subirYProcesarClientesFP()">
+                  Subir y Procesar
+                </button>
+              </div>
+            </div>
+            <small style="color:var(--secondary); display:block; margin-bottom:10px;">Si un cliente ya existe (misma matrícula), se actualizan sus datos. Si es nuevo, se agrega.</small>
+            <div id="mensaje-clientes-fp" style="color:var(--secondary); font-size:13px; margin-bottom:15px;"></div>
+            <div class="table-wrapper" style="margin-top:0; margin-bottom:25px;">
+              <table>
+                <thead>
+                  <tr><th>Fecha de Importación</th><th>Archivo(s)</th><th>Clientes Nuevos</th><th>Clientes Actualizados</th></tr>
+                </thead>
+                <tbody id="cuerpo-tabla-historial-clientes-fp"></tbody>
+              </table>
+            </div>
+
+            <div class="section-title">Vencimientos RIV</div>
+            <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:8px; flex-wrap: wrap;">
+              <div class="field-group" style="flex:1; min-width:250px; margin-bottom:0;">
+                <label>Adjuntar reporte de Renovaciones de Rivadavia (.txt)</label>
+                <input type="file" id="vencimientos-riv-archivo" accept=".txt">
+              </div>
+              <div class="field-group" style="margin-bottom:0;">
+                <label style="visibility:hidden;">.</label>
+                <button type="button" id="btn-procesar-vencimientos-riv" class="btn-principal" style="height: 38px; padding: 0 20px;" onclick="subirYProcesarVencimientosRIV()">
+                  Subir y Procesar
+                </button>
+              </div>
+            </div>
+            <small style="color:var(--secondary); display:block; margin-bottom:10px;">Tiene que ser el archivo de texto descomprimido (.txt), no el .Z original. El cliente se vincula por nombre — si no coincide con ninguno del CRM, la tarea se crea igual, sin vincular.</small>
+            <div id="mensaje-vencimientos-riv" style="color:var(--secondary); font-size:13px; margin-bottom:15px;"></div>
+            <div class="table-wrapper" style="margin-top:0;">
+              <table>
+                <thead>
+                  <tr><th>Fecha de Importación</th><th>Cantidad</th><th>Vencimiento Desde</th><th>Vencimiento Hasta</th></tr>
+                </thead>
+                <tbody id="cuerpo-tabla-historial-vencimientos-riv"></tbody>
+              </table>
+            </div>
+
+            <div class="section-title">Vencimientos PS</div>
+            <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:8px; flex-wrap: wrap;">
+              <div class="field-group" style="flex:1; min-width:250px; margin-bottom:0;">
+                <label>Adjuntar Excel de vencimientos de Provincia Seguros (.xlsx)</label>
+                <input type="file" id="vencimientos-ps-archivo" accept=".xlsx">
+              </div>
+              <div class="field-group" style="margin-bottom:0;">
+                <label style="visibility:hidden;">.</label>
+                <button type="button" id="btn-procesar-vencimientos-ps" class="btn-principal" style="height: 38px; padding: 0 20px;" onclick="subirYProcesarVencimientosPS()">
+                  Subir y Procesar
+                </button>
+              </div>
+            </div>
+            <small style="color:var(--secondary); display:block; margin-bottom:10px;">El cliente se vincula por nombre — si no coincide con ninguno del CRM, la tarea se crea igual, sin vincular.</small>
+            <div id="mensaje-vencimientos-ps" style="color:var(--secondary); font-size:13px; margin-bottom:15px;"></div>
+            <div class="table-wrapper" style="margin-top:0;">
+              <table>
+                <thead>
+                  <tr><th>Fecha de Importación</th><th>Cantidad</th><th>Vencimiento Desde</th><th>Vencimiento Hasta</th></tr>
+                </thead>
+                <tbody id="cuerpo-tabla-historial-vencimientos-ps"></tbody>
+              </table>
+            </div>
+          </div>
+
         </div>
       </div>
     </div> 
+
+    <div id="modal-confirmacion" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.45); z-index:9999; align-items:center; justify-content:center;">
+      <div style="background:white; border-radius:8px; padding:24px; max-width:360px; width:90%; box-shadow:0 10px 30px rgba(0,0,0,0.25);">
+        <p id="modal-confirmacion-mensaje" style="margin:0 0 20px 0; color:var(--zoho-nav); font-size:15px;"></p>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn-secondary" onclick="cerrarModalConfirmacion(false)">Cancelar</button>
+          <button type="button" class="btn-principal" style="background-color:var(--danger);" onclick="cerrarModalConfirmacion(true)">Confirmar</button>
+        </div>
+      </div>
+    </div>
 
     <?!= include('Scripts'); ?>
 

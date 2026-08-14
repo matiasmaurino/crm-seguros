@@ -147,6 +147,26 @@ function guardarTarea(t, usuarioActivo) {
  * tocar la estructura de la hoja. La fila queda en TAREAS por si hace
  * falta auditarla después.
  */
+/**
+ * Actualiza solo la columna Descripción (E) de una tarea existente — usada
+ * por "Agregar Comentario" para guardar cada línea nueva al toque, sin
+ * pasar por guardarTarea() (que además dispara lógica de calendario que
+ * acá no hace falta).
+ */
+function actualizarDescripcionTarea(idFila, nuevaDescripcion) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName("TAREAS");
+  if (!hoja) throw new Error("No se encontró la hoja TAREAS");
+
+  const filaNumero = Number(idFila);
+  if (filaNumero <= 1 || filaNumero > hoja.getLastRow()) {
+    throw new Error("Número de fila inválido.");
+  }
+
+  hoja.getRange(filaNumero, 5).setValue(nuevaDescripcion); // Columna E: Descripción
+  return { exito: true };
+}
+
 function marcarTareaComoEliminada(idFila) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const hoja = ss.getSheetByName("TAREAS");

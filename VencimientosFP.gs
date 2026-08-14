@@ -287,10 +287,14 @@ function procesarVencimientosFP() {
  * Tareas de Renovacion que vienen de Federación Patronal, para el módulo
  * "Vencimientos FP" (se muestra igual que Siniestros).
  */
+// Nota: a pesar del nombre (que quedó de cuando esto era solo FP), ahora
+// devuelve renovaciones de CUALQUIER compañía (FP, RIV, etc.) — la
+// pantalla "Vencimientos" ya no es exclusiva de Federación Patronal. No
+// renombré la función para no romper la referencia que usa el frontend.
 function obtenerVencimientosFP() {
   const todasLasTareas = obtenerTareas();
   return todasLasTareas.filter(t =>
     (t.tipoTarea || "").toString().trim().toLowerCase() === "renovacion" &&
-    (t.compania || "").toString().trim().toLowerCase() === "federación patronal"
+    (t.estado || "").toString().trim().toLowerCase() !== "terminado"
   );
 }

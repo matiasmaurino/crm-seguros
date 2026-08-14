@@ -93,8 +93,9 @@
   /**
    * Dibuja la tabla del Historial respetando estrictamente las columnas de tu Index.html
    */
-  function eliminarTareaDesdeListado(idFila) {
-    if (!confirm("¿Eliminar esta tarea?")) return;
+  async function eliminarTareaDesdeListado(idFila) {
+    const ok = await confirmarAccion("¿Eliminar esta tarea?");
+    if (!ok) return;
 
     google.script.run
       .withSuccessHandler(() => {
@@ -330,8 +331,17 @@
     if(id === 'siniestros') {
       uiConsultarSiniestros();
     }
+    if(id === 'cobranzas') {
+      uiConsultarCobranzas();
+    }
     if(id === 'vencimientos-fp') {
       uiConsultarVencimientosFP();
+    }
+    if(id === 'importar') {
+      cargarHistorialVencimientosFP();
+      cargarHistorialClientesFP();
+      cargarHistorialVencimientosRIV();
+      cargarHistorialVencimientosPS();
     }
   }
 
@@ -757,6 +767,76 @@
     s.size = v.length > 0 ? Math.min(filtrados.length + 1, 5) : 1;
   }
 
+  // Reemplaza a window.confirm() para que no aparezca el cartel del
+  // navegador con la URL de Apps Script arriba (eso no se puede sacar, es
+  // el navegador el que lo agrega). Uso: const ok = await confirmarAccion("¿Eliminar?");
+  let _resolverModalConfirmacion = null;
+
+  function confirmarAccion(mensaje) {
+    return new Promise(resolve => {
+      _resolverModalConfirmacion = resolve;
+      document.getElementById('modal-confirmacion-mensaje').innerText = mensaje;
+      document.getElementById('modal-confirmacion').style.display = 'flex';
+    });
+  }
+
+  function cerrarModalConfirmacion(resultado) {
+    document.getElementById('modal-confirmacion').style.display = 'none';
+    if (_resolverModalConfirmacion) {
+      _resolverModalConfirmacion(resultado);
+      _resolverModalConfirmacion = null;
+    }
+  }
+
+  // Formatea igual que "13/8/26 15:15hs": día y mes sin ceros a la
+  // izquierda, año en 2 dígitos, hora sin cero a la izquierda, minutos con
+  // cero a la izquierda.
+  function formatearFechaComentario(fecha) {
+    const dia = fecha.getDate();
+    const mes = fecha.getMonth() + 1;
+    const anio = fecha.getFullYear().toString().slice(-2);
+    const horas = fecha.getHours();
+    const minutos = fecha.getMinutes().toString().padStart(2, '0');
+    return `${dia}/${mes}/${anio} ${horas}:${minutos}hs`;
+  }
+
+  /**
+   * Agrega una línea nueva (con fecha y hora) arriba de todo en el campo
+   * Descripción / Detalle. Si la tarea ya existe (se está editando), guarda
+   * el comentario en el servidor al toque, sin esperar a "Guardar Tarea".
+   * Si es una tarea nueva (todavía no tiene fila asignada), el comentario
+   * queda en el campo y se guarda recién cuando se guarde la tarea.
+   */
+  function agregarComentarioTarea() {
+    const inputComentario = document.getElementById('tarea-nuevo-comentario');
+    const texto = inputComentario.value.trim();
+    if (!texto) {
+      mostrarMensajeExito("Escribí algo antes de agregar el comentario");
+      return;
+    }
+
+    const lineaNueva = formatearFechaComentario(new Date()) + " " + texto;
+
+    const textareaDesc = document.getElementById('tarea-desc');
+    const descripcionActual = textareaDesc.value.trim();
+    const nuevaDescripcion = descripcionActual ? (lineaNueva + "\n" + descripcionActual) : lineaNueva;
+
+    textareaDesc.value = nuevaDescripcion;
+    inputComentario.value = "";
+
+    const idFila = document.getElementById('tarea-id-fila').value;
+    if (idFila) {
+      google.script.run
+        .withSuccessHandler(() => {
+          mostrarMensajeExito("Comentario agregado");
+        })
+        .withFailureHandler(error => {
+          mostrarMensajeExito("Error al guardar el comentario: " + error.message);
+        })
+        .actualizarDescripcionTarea(idFila, nuevaDescripcion);
+    }
+  }
+
   function mostrarMensajeExito(texto) {
     const toast = document.createElement('div');
     toast.className = 'toast-notificacion';
@@ -906,8 +986,9 @@
       .guardarPolizaManual(datos, usuarioLogueado);
   }
 
-  function eliminarPolizaManualUI(idFila, idCliente) {
-    if (!confirm("¿Eliminar esta póliza cargada manualmente?")) return;
+  async function eliminarPolizaManualUI(idFila, idCliente) {
+    const ok = await confirmarAccion("¿Eliminar esta póliza cargada manualmente?");
+    if (!ok) return;
     google.script.run
       .withSuccessHandler(() => {
         mostrarMensajeExito("Póliza eliminada");
@@ -1155,6 +1236,115 @@
   }
 
   // =========================================================================
+  // MÓDULO COBRANZAS
+  // =========================================================================
+  let cacheCobranzas = [];
+
+  function uiConsultarCobranzas() {
+    const tbody = document.getElementById('cuerpo-tabla-cobranzas');
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--secondary);">Buscando cobranzas...</td></tr>`;
+
+    google.script.run
+      .withSuccessHandler(lista => {
+        cacheCobranzas = lista;
+        poblarFiltrosCobranzas(lista);
+        aplicarFiltrosCobranzas();
+      })
+      .withFailureHandler(error => {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--danger);">Error al buscar cobranzas: ${error.message}</td></tr>`;
+      })
+      .obtenerCobranzas();
+  }
+
+  function poblarFiltrosCobranzas(lista) {
+    const selResponsable = document.getElementById('filtro-responsable-cobranzas');
+    const selRamo = document.getElementById('filtro-ramo-cobranzas');
+    const responsableActual = selResponsable.value || "Todos";
+    const ramoActual = selRamo.value || "Todos";
+
+    const responsables = [...new Set(lista.map(c => c.responsable).filter(r => r))].sort();
+    const ramos = [...new Set(lista.map(c => c.ramo).filter(r => r))].sort();
+
+    selResponsable.innerHTML = '<option value="Todos">Responsable: Todos</option>';
+    responsables.forEach(r => {
+      const o = document.createElement('option'); o.value = r; o.text = r; selResponsable.add(o);
+    });
+    selResponsable.value = responsables.includes(responsableActual) ? responsableActual : "Todos";
+
+    selRamo.innerHTML = '<option value="Todos">Ramo: Todos</option>';
+    ramos.forEach(r => {
+      const o = document.createElement('option'); o.value = r; o.text = r; selRamo.add(o);
+    });
+    selRamo.value = ramos.includes(ramoActual) ? ramoActual : "Todos";
+  }
+
+  function filtrarTablaCobranzas() {
+    aplicarFiltrosCobranzas();
+  }
+
+  function limpiarFiltrosCobranzas() {
+    document.getElementById('buscador-cobranza').value = "";
+    document.getElementById('filtro-responsable-cobranzas').value = "Todos";
+    document.getElementById('filtro-ramo-cobranzas').value = "Todos";
+    aplicarFiltrosCobranzas();
+  }
+
+  function aplicarFiltrosCobranzas() {
+    const texto = document.getElementById('buscador-cobranza').value.toLowerCase().trim();
+    const responsable = document.getElementById('filtro-responsable-cobranzas').value;
+    const ramo = document.getElementById('filtro-ramo-cobranzas').value;
+
+    const filtradas = cacheCobranzas.filter(c => {
+      if (responsable !== "Todos" && c.responsable !== responsable) return false;
+      if (ramo !== "Todos" && c.ramo !== ramo) return false;
+
+      if (texto !== "") {
+        const campoBusqueda = [c.clienteNombre, c.ramo, c.compania, c.descripcion].join(" ");
+        if (!coincideBusquedaCliente(campoBusqueda, texto)) return false;
+      }
+
+      return true;
+    });
+
+    renderTablaCobranzas(filtradas);
+  }
+
+  function renderTablaCobranzas(lista) {
+    const tbody = document.getElementById('cuerpo-tabla-cobranzas');
+    tbody.innerHTML = '';
+
+    if (!lista || lista.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--secondary);">No se encontraron cobranzas</td></tr>`;
+      return;
+    }
+
+    const copia = [...lista].sort((a, b) => new Date(a.vencimiento) - new Date(b.vencimiento));
+
+    copia.forEach(c => {
+      const tr = document.createElement('tr');
+      const jsonStr = encodeURIComponent(JSON.stringify(c));
+      const fVencim = c.vencimiento ? c.vencimiento.split('-').reverse().join('/') : '';
+
+      tr.innerHTML = `
+        <td>
+          <button type="button" class="btn-icon" title="Editar Tarea" onclick="prepararEdicionTarea('${jsonStr}')">✏️</button>
+        </td>
+        <td>${c.creacion || ''}</td>
+        <td style="${estiloVencimientoTarea(c.vencimiento)}">${fVencim}</td>
+        <td>
+          <a href="#" class="enlace-cliente-tabla" onclick="viajarAlCliente('${c.idCliente}'); return false;">
+            ${c.clienteNombre}
+          </a>
+        </td>
+        <td>${c.compania || ''}</td>
+        <td style="font-weight:500; color:var(--zoho-nav);">${c.ramo || '-'}</td>
+        <td><span class="texto-descripcion" title="${c.descripcion || ''}">${c.descripcion || ''}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // =========================================================================
   // MÓDULO VENCIMIENTOS FP
   // =========================================================================
   let cacheVencimientosFP = [];
@@ -1190,6 +1380,7 @@
               input.value = "";
               btn.disabled = false;
               uiConsultarVencimientosFP();
+              cargarHistorialVencimientosFP();
             })
             .withFailureHandler(error => {
               mensajeEl.innerText = "Error al procesar: " + error.message;
@@ -1206,6 +1397,257 @@
     reader.readAsDataURL(archivo);
   }
 
+  // =========================================================================
+  // MÓDULO CLIENTES FP
+  // =========================================================================
+  function subirYProcesarClientesFP() {
+    const input = document.getElementById('clientes-fp-archivo');
+    const archivo = input.files[0];
+    const mensajeEl = document.getElementById('mensaje-clientes-fp');
+
+    if (!archivo) {
+      mensajeEl.innerText = "Elegí un archivo CSV primero.";
+      return;
+    }
+
+    const btn = document.getElementById('btn-procesar-clientes-fp');
+    btn.disabled = true;
+    mensajeEl.innerText = "Subiendo archivo...";
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64 = e.target.result;
+      google.script.run
+        .withSuccessHandler(resultadoSubida => {
+          if (!resultadoSubida.exito) {
+            mensajeEl.innerText = "Error al subir: " + resultadoSubida.mensaje;
+            btn.disabled = false;
+            return;
+          }
+          mensajeEl.innerText = "Archivo subido. Procesando clientes...";
+          google.script.run
+            .withSuccessHandler(resultado => {
+              mensajeEl.innerText = "Listo: " + resultado.nuevos + " clientes nuevos en CLIENTES FP, " + resultado.actualizados + " actualizados. En el CRM: " + resultado.nuevosCRM + " clientes nuevos, " + resultado.actualizadosCRM + " actualizados.";
+              input.value = "";
+              btn.disabled = false;
+              cargarHistorialClientesFP();
+            })
+            .withFailureHandler(error => {
+              mensajeEl.innerText = "Error al procesar: " + error.message;
+              btn.disabled = false;
+            })
+            .procesarClientesFP();
+        })
+        .withFailureHandler(error => {
+          mensajeEl.innerText = "Error al subir: " + error.message;
+          btn.disabled = false;
+        })
+        .subirCSVClientesFP(base64, archivo.name);
+    };
+    reader.readAsDataURL(archivo);
+  }
+
+  function cargarHistorialClientesFP() {
+    const tbody = document.getElementById('cuerpo-tabla-historial-clientes-fp');
+    google.script.run
+      .withSuccessHandler(historial => {
+        renderHistorialClientesFP(historial);
+      })
+      .withFailureHandler(error => {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger);">Error al cargar el historial: ${error.message}</td></tr>`;
+      })
+      .obtenerHistorialClientesFP();
+  }
+
+  function renderHistorialClientesFP(historial) {
+    const tbody = document.getElementById('cuerpo-tabla-historial-clientes-fp');
+    tbody.innerHTML = '';
+
+    if (!historial || historial.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--secondary);">Todavía no se importó ningún archivo</td></tr>`;
+      return;
+    }
+
+    historial.forEach(h => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${h.fecha || ''}</td>
+        <td>${h.archivos || ''}</td>
+        <td>${h.nuevos || 0}</td>
+        <td>${h.actualizados || 0}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // =========================================================================
+  // MÓDULO VENCIMIENTOS RIV
+  // =========================================================================
+  function subirYProcesarVencimientosRIV() {
+    const input = document.getElementById('vencimientos-riv-archivo');
+    const archivo = input.files[0];
+    const mensajeEl = document.getElementById('mensaje-vencimientos-riv');
+
+    if (!archivo) {
+      mensajeEl.innerText = "Elegí un archivo .txt primero.";
+      return;
+    }
+
+    const btn = document.getElementById('btn-procesar-vencimientos-riv');
+    btn.disabled = true;
+    mensajeEl.innerText = "Subiendo archivo...";
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64 = e.target.result;
+      google.script.run
+        .withSuccessHandler(resultadoSubida => {
+          if (!resultadoSubida.exito) {
+            mensajeEl.innerText = "Error al subir: " + resultadoSubida.mensaje;
+            btn.disabled = false;
+            return;
+          }
+          mensajeEl.innerText = "Archivo subido. Procesando renovaciones...";
+          google.script.run
+            .withSuccessHandler(resultado => {
+              mensajeEl.innerText = "Listo: se crearon " + resultado.tareasCreadas + " tareas nuevas (" + resultado.omitidas + " pólizas ya estaban cargadas, " + resultado.sinVincular + " sin cliente vinculado por nombre).";
+              input.value = "";
+              btn.disabled = false;
+              uiConsultarVencimientosFP();
+              cargarHistorialVencimientosRIV();
+            })
+            .withFailureHandler(error => {
+              mensajeEl.innerText = "Error al procesar: " + error.message;
+              btn.disabled = false;
+            })
+            .procesarVencimientosRIV();
+        })
+        .withFailureHandler(error => {
+          mensajeEl.innerText = "Error al subir: " + error.message;
+          btn.disabled = false;
+        })
+        .subirTXTVencimientosRIV(base64, archivo.name);
+    };
+    reader.readAsDataURL(archivo);
+  }
+
+  function cargarHistorialVencimientosRIV() {
+    const tbody = document.getElementById('cuerpo-tabla-historial-vencimientos-riv');
+    google.script.run
+      .withSuccessHandler(historial => {
+        renderHistorialVencimientosRIV(historial);
+      })
+      .withFailureHandler(error => {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger);">Error al cargar el historial: ${error.message}</td></tr>`;
+      })
+      .obtenerHistorialVencimientosRIV();
+  }
+
+  function renderHistorialVencimientosRIV(historial) {
+    const tbody = document.getElementById('cuerpo-tabla-historial-vencimientos-riv');
+    tbody.innerHTML = '';
+
+    if (!historial || historial.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--secondary);">Todavía no se importó ningún archivo</td></tr>`;
+      return;
+    }
+
+    historial.forEach(h => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${h.fecha || ''}</td>
+        <td>${h.cantidad || 0}</td>
+        <td>${h.desde || ''}</td>
+        <td>${h.hasta || ''}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // =========================================================================
+  // MÓDULO VENCIMIENTOS PS
+  // =========================================================================
+  function subirYProcesarVencimientosPS() {
+    const input = document.getElementById('vencimientos-ps-archivo');
+    const archivo = input.files[0];
+    const mensajeEl = document.getElementById('mensaje-vencimientos-ps');
+
+    if (!archivo) {
+      mensajeEl.innerText = "Elegí un archivo .xlsx primero.";
+      return;
+    }
+
+    const btn = document.getElementById('btn-procesar-vencimientos-ps');
+    btn.disabled = true;
+    mensajeEl.innerText = "Subiendo archivo...";
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64 = e.target.result;
+      google.script.run
+        .withSuccessHandler(resultadoSubida => {
+          if (!resultadoSubida.exito) {
+            mensajeEl.innerText = "Error al subir: " + resultadoSubida.mensaje;
+            btn.disabled = false;
+            return;
+          }
+          mensajeEl.innerText = "Archivo subido. Procesando renovaciones...";
+          google.script.run
+            .withSuccessHandler(resultado => {
+              mensajeEl.innerText = "Listo: se crearon " + resultado.tareasCreadas + " tareas nuevas (" + resultado.omitidas + " pólizas ya estaban cargadas, " + resultado.sinVincular + " sin cliente vinculado por nombre).";
+              input.value = "";
+              btn.disabled = false;
+              uiConsultarVencimientosFP();
+              cargarHistorialVencimientosPS();
+            })
+            .withFailureHandler(error => {
+              mensajeEl.innerText = "Error al procesar: " + error.message;
+              btn.disabled = false;
+            })
+            .procesarVencimientosPS();
+        })
+        .withFailureHandler(error => {
+          mensajeEl.innerText = "Error al subir: " + error.message;
+          btn.disabled = false;
+        })
+        .subirXLSXVencimientosPS(base64, archivo.name);
+    };
+    reader.readAsDataURL(archivo);
+  }
+
+  function cargarHistorialVencimientosPS() {
+    const tbody = document.getElementById('cuerpo-tabla-historial-vencimientos-ps');
+    google.script.run
+      .withSuccessHandler(historial => {
+        renderHistorialVencimientosPS(historial);
+      })
+      .withFailureHandler(error => {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger);">Error al cargar el historial: ${error.message}</td></tr>`;
+      })
+      .obtenerHistorialVencimientosPS();
+  }
+
+  function renderHistorialVencimientosPS(historial) {
+    const tbody = document.getElementById('cuerpo-tabla-historial-vencimientos-ps');
+    tbody.innerHTML = '';
+
+    if (!historial || historial.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--secondary);">Todavía no se importó ningún archivo</td></tr>`;
+      return;
+    }
+
+    historial.forEach(h => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${h.fecha || ''}</td>
+        <td>${h.cantidad || 0}</td>
+        <td>${h.desde || ''}</td>
+        <td>${h.hasta || ''}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
   function uiConsultarVencimientosFP() {
     const tbody = document.getElementById('cuerpo-tabla-vencimientos-fp');
     tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">Buscando vencimientos...</td></tr>`;
@@ -1220,8 +1662,6 @@
         tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--danger);">Error al buscar vencimientos: ${error.message}</td></tr>`;
       })
       .obtenerVencimientosFP();
-
-    cargarHistorialVencimientosFP();
   }
 
   function cargarHistorialVencimientosFP() {
@@ -1430,16 +1870,18 @@
     });
   }
 
-  function eliminarRenovacionDesdeListado(idFila) {
-    if (!confirm("¿Eliminar esta renovación?")) return;
+  async function eliminarRenovacionDesdeListado(idFila) {
+    const ok = await confirmarAccion("¿Eliminar esta renovación?");
+    if (!ok) return;
     google.script.run.withSuccessHandler(() => {
       mostrarMensajeExito("Renovación eliminada");
       uiConsultarRenovaciones();
     }).eliminarRenovacionEnServidor(idFila);
   }
 
-  function regenerarTareasRenovacionUI(idFila) {
-    if (!confirm("¿Generar 10 tareas más para esta renovación?")) return;
+  async function regenerarTareasRenovacionUI(idFila) {
+    const ok = await confirmarAccion("¿Generar 10 tareas más para esta renovación?");
+    if (!ok) return;
     google.script.run
       .withSuccessHandler(r => {
         const cantidad = (r && r.tareasCreadas) || 0;
