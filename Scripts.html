@@ -1622,7 +1622,7 @@
         renderHistorialVencimientosPS(historial);
       })
       .withFailureHandler(error => {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger);">Error al cargar el historial: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger);">Error al cargar el historial: ${error.message}</td></tr>`;
       })
       .obtenerHistorialVencimientosPS();
   }
@@ -1632,7 +1632,7 @@
     tbody.innerHTML = '';
 
     if (!historial || historial.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--secondary);">Todavía no se importó ningún archivo</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--secondary);">Todavía no se importó ningún archivo</td></tr>`;
       return;
     }
 
@@ -1640,6 +1640,7 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${h.fecha || ''}</td>
+        <td>${h.archivos || ''}</td>
         <td>${h.cantidad || 0}</td>
         <td>${h.desde || ''}</td>
         <td>${h.hasta || ''}</td>

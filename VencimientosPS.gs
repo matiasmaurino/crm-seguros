@@ -65,19 +65,19 @@ function parsearFechaVencimientoPS(valor) {
   return isNaN(fecha) ? null : fecha;
 }
 
-function registrarImportacionVencimientosPS(ss, cantidad, minFecha, maxFecha) {
+function registrarImportacionVencimientosPS(ss, nombresArchivos, cantidad, minFecha, maxFecha) {
   let hoja = ss.getSheetByName("REGISTRO_VENCIMIENTOS_PS");
   if (!hoja) {
     hoja = ss.insertSheet("REGISTRO_VENCIMIENTOS_PS");
   }
   if (hoja.getLastRow() === 0) {
-    hoja.appendRow(["Fecha de Importación", "Cantidad de Tareas", "Vencimiento Más Antiguo", "Vencimiento Más Reciente"]);
+    hoja.appendRow(["Fecha de Importación", "Archivo(s)", "Cantidad de Tareas", "Vencimiento Más Antiguo", "Vencimiento Más Reciente"]);
   }
   if (cantidad > 0) {
-    hoja.appendRow([new Date(), cantidad, minFecha, maxFecha]);
+    hoja.appendRow([new Date(), nombresArchivos.join(", "), cantidad, minFecha, maxFecha]);
     const ultimaFila = hoja.getLastRow();
     hoja.getRange(ultimaFila, 1, 1, 1).setNumberFormat("dd/mm/yyyy hh:mm");
-    hoja.getRange(ultimaFila, 3, 1, 2).setNumberFormat("dd/mm/yyyy");
+    hoja.getRange(ultimaFila, 4, 1, 2).setNumberFormat("dd/mm/yyyy");
   }
 }
 
@@ -94,9 +94,9 @@ function obtenerHistorialVencimientosPS() {
 
   return filas.map(fila => {
     const fecha = (fila[0] instanceof Date) ? Utilities.formatDate(fila[0], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy HH:mm") : "";
-    const desde = (fila[2] instanceof Date) ? Utilities.formatDate(fila[2], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy") : "";
-    const hasta = (fila[3] instanceof Date) ? Utilities.formatDate(fila[3], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy") : "";
-    return { fecha: fecha, cantidad: fila[1] || 0, desde: desde, hasta: hasta };
+    const desde = (fila[3] instanceof Date) ? Utilities.formatDate(fila[3], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy") : "";
+    const hasta = (fila[4] instanceof Date) ? Utilities.formatDate(fila[4], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy") : "";
+    return { fecha: fecha, archivos: fila[1] || "", cantidad: fila[2] || 0, desde: desde, hasta: hasta };
   }).reverse();
 }
 
@@ -137,8 +137,10 @@ function procesarVencimientosPS() {
   let sinVincular = 0;
   let minFecha = null;
   let maxFecha = null;
+  const nombresArchivos = [];
 
   archivosXLSX.forEach(file => {
+    nombresArchivos.push(file.getName());
     const datos = leerFilasDeXLSX(file);
 
     for (let i = 1; i < datos.length; i++) {
@@ -206,7 +208,7 @@ function procesarVencimientosPS() {
       }
     });
 
-    registrarImportacionVencimientosPS(ss, filasNuevas.length, minFecha, maxFecha);
+    registrarImportacionVencimientosPS(ss, nombresArchivos, filasNuevas.length, minFecha, maxFecha);
   }
 
   return {
