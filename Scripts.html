@@ -283,7 +283,7 @@
         
         // --- CARGAR RAMOS DESDE LA HOJA RAMO ---
         google.script.run.withSuccessHandler(ramos => {
-          const idsRamo = ['tarea-ramo', 'renovacion-ramo', 'poliza-manual-ramo'];
+          const idsRamo = ['tarea-ramo', 'renovacion-ramo'];
           idsRamo.forEach(id => {
             const elRamo = document.getElementById(id);
             if (elRamo) {
@@ -566,7 +566,6 @@
     document.getElementById('modulo-tareas-asociadas').style.display = 'block';
 
     cargarPolizasCliente(idCliente);
-    habilitarCamposPolizaManual(true);
     
     if (typeof dibujarRelacionados === "function") {
       dibujarRelacionados(cliente.relaciones || []);
@@ -637,10 +636,6 @@
     document.getElementById('cuerpo-tabla-cliente-directo').innerHTML = "";
     relacionadosSeleccionados = [];
 
-    habilitarCamposPolizaManual(false);
-    document.getElementById('poliza-manual-ramo').value = "";
-    document.getElementById('poliza-manual-numero').value = "";
-    document.getElementById('poliza-manual-productor').value = "";
     limpiarTablaPolizas();
   }
 
@@ -932,58 +927,6 @@
 
     sinDatos.style.display = 'none';
     wrapper.style.display = 'block';
-  }
-
-  function habilitarCamposPolizaManual(activar) {
-    const campos = ['poliza-manual-compania', 'poliza-manual-ramo', 'poliza-manual-numero', 'poliza-manual-productor', 'btn-agregar-poliza-manual'];
-    campos.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.disabled = !activar;
-    });
-  }
-
-  function agregarPolizaManual() {
-    const idCliente = document.getElementById('cliente-id').value;
-    if (!idCliente) {
-      mostrarMensajeExito("Primero seleccioná o guardá un cliente");
-      return;
-    }
-
-    const numero = document.getElementById('poliza-manual-numero').value.trim();
-    if (!numero) {
-      mostrarMensajeExito("Ingresá el número de póliza");
-      return;
-    }
-
-    const datos = {
-      idCliente: idCliente,
-      compania: document.getElementById('poliza-manual-compania').value,
-      ramo: document.getElementById('poliza-manual-ramo').value,
-      poliza: numero,
-      productor: document.getElementById('poliza-manual-productor').value.trim()
-    };
-
-    const btn = document.getElementById('btn-agregar-poliza-manual');
-    const textoOriginal = btn.innerText;
-    btn.disabled = true;
-    btn.innerText = "Guardando...";
-
-    google.script.run
-      .withSuccessHandler(() => {
-        mostrarMensajeExito("Póliza agregada");
-        document.getElementById('poliza-manual-ramo').value = "";
-        document.getElementById('poliza-manual-numero').value = "";
-        document.getElementById('poliza-manual-productor').value = "";
-        btn.disabled = false;
-        btn.innerText = textoOriginal;
-        cargarPolizasCliente(idCliente);
-      })
-      .withFailureHandler(error => {
-        mostrarMensajeExito("Error al guardar: " + error.message);
-        btn.disabled = false;
-        btn.innerText = textoOriginal;
-      })
-      .guardarPolizaManual(datos, usuarioLogueado);
   }
 
   async function eliminarPolizaManualUI(idFila, idCliente) {

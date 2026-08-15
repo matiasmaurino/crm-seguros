@@ -285,42 +285,6 @@
               <div id="contenedor-relacionados" style="margin-top:15px; display:flex; flex-wrap:wrap; gap:8px;"></div>
 
               <div class="section-title">Pólizas</div>
-              <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:8px; flex-wrap: wrap;">
-                <div class="field-group" style="flex:1; min-width:150px; margin-bottom:0;">
-                  <label>Compañía</label>
-                  <select id="poliza-manual-compania" style="width: 100%; height: 38px;" disabled>
-                    <option value="Rivadavia">Rivadavia</option>
-                    <option value="Provincia Seguros">Provincia Seguros</option>
-                    <option value="Federación Patronal">Fed. Patronal</option>
-                  </select>
-                </div>
-                <div class="field-group" style="flex:1; min-width:150px; margin-bottom:0;">
-                  <label>Ramo</label>
-                  <select id="poliza-manual-ramo" style="width: 100%; height: 38px;" disabled>
-                    <option value="">-- Seleccione --</option>
-                  </select>
-                </div>
-                <div class="field-group" style="flex:1; min-width:140px; margin-bottom:0;">
-                  <label>N° de Póliza</label>
-                  <input type="text" id="poliza-manual-numero" disabled>
-                </div>
-                <div class="field-group" style="flex:1; min-width:140px; margin-bottom:0;">
-                  <label>Productor</label>
-                  <select id="poliza-manual-productor" disabled>
-                    <option value="">-- Seleccione --</option>
-                    <option value="Mariana">Mariana</option>
-                    <option value="Matias">Matias</option>
-                    <option value="Daniel">Daniel</option>
-                  </select>
-                </div>
-                <div class="field-group" style="margin-bottom:0;">
-                  <label style="visibility:hidden;">.</label>
-                  <button type="button" id="btn-agregar-poliza-manual" class="btn-principal" style="height: 38px; padding: 0 20px;" onclick="agregarPolizaManual()" disabled>
-                    Agregar
-                  </button>
-                </div>
-              </div>
-              <small style="color:var(--secondary); display:block; margin-bottom:15px;">Usalo para una póliza recién emitida que todavía no aparece en Liquidaciones. Cuando el archivo se actualice y la traiga, se reemplaza sola.</small>
 
               <div id="sin-polizas-cliente" style="color:var(--secondary); font-size:13px; margin-bottom:15px;">Seleccioná un cliente para ver sus pólizas</div>
               <div class="table-wrapper" id="wrapper-tabla-polizas" style="margin-top:0; margin-bottom:20px; display:none;">
