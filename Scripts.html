@@ -418,6 +418,33 @@
       return;
     }
 
+    // Si estamos editando una tarea existente y cambió el Estado y/o el
+    // Responsable respecto a como estaba al abrirla, lo dejamos anotado
+    // solo, como un comentario más, arriba de todo en la Descripción.
+    const idFilaActual = document.getElementById('tarea-id-fila').value;
+    if (idFilaActual) {
+      const estadoOriginal = document.getElementById('tarea-estado-original').value;
+      const responsableOriginal = document.getElementById('tarea-responsable-original').value;
+      const estadoNuevo = document.getElementById('tarea-estado').value;
+      const responsableNuevo = document.getElementById('tarea-responsable').value;
+
+      const lineasAuto = [];
+      if (estadoOriginal && estadoOriginal !== estadoNuevo) {
+        lineasAuto.push(formatearFechaComentario(new Date()) + " " + (usuarioLogueado || "Alguien") + " marcó " + estadoNuevo + " la tarea");
+      }
+      if (responsableOriginal && responsableOriginal !== responsableNuevo) {
+        lineasAuto.push(formatearFechaComentario(new Date()) + " " + (usuarioLogueado || "Alguien") + " cambió el responsable a " + responsableNuevo);
+      }
+
+      if (lineasAuto.length > 0) {
+        const textareaDesc = document.getElementById('tarea-desc');
+        const descripcionActual = textareaDesc.value.trim();
+        textareaDesc.value = descripcionActual
+          ? (lineasAuto.join("\n") + "\n" + descripcionActual)
+          : lineasAuto.join("\n");
+      }
+    }
+
     const btn = document.getElementById('btn-guardar-tarea');
     const file = document.getElementById('tarea-adjunto').files[0];
     btn.disabled = true; 
@@ -461,6 +488,8 @@
     const btnTarea = document.getElementById('nav-nueva-tarea');
     mostrarSeccion('tareas', btnTarea);
     document.getElementById('tarea-id-fila').value = t.id_fila;
+    document.getElementById('tarea-estado-original').value = t.estado || "";
+    document.getElementById('tarea-responsable-original').value = t.responsable || "";
     document.getElementById('contenedor-seleccion-cliente').style.display = 'none';
     document.getElementById('cliente-bloqueado').style.display = 'block';
     document.getElementById('nombre-cliente-fijo').value = t.clienteNombre;
@@ -489,6 +518,8 @@
   function limpiarFormTarea() {
     document.getElementById('form-tarea').reset();
     document.getElementById('tarea-id-fila').value = "";
+    document.getElementById('tarea-estado-original').value = "";
+    document.getElementById('tarea-responsable-original').value = "";
     document.getElementById('tarea-vencimiento').type = 'date';
     
     const hoy = new Date();
