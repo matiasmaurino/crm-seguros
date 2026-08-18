@@ -596,6 +596,30 @@
                 <tbody id="cuerpo-tabla-historial-vencimientos-ps"></tbody>
               </table>
             </div>
+
+            <div class="section-title">Siniestros FP</div>
+            <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:8px; flex-wrap: wrap;">
+              <div class="field-group" style="flex:1; min-width:250px; margin-bottom:0;">
+                <label>Adjuntar CSV de Siniestros FP</label>
+                <input type="file" id="siniestros-fp-archivo" accept=".csv">
+              </div>
+              <div class="field-group" style="margin-bottom:0;">
+                <label style="visibility:hidden;">.</label>
+                <button type="button" id="btn-procesar-siniestros-fp" class="btn-principal" style="height: 38px; padding: 0 20px;" onclick="subirYProcesarSiniestrosFP()">
+                  Subir y Procesar
+                </button>
+              </div>
+            </div>
+            <small style="color:var(--secondary); display:block; margin-bottom:10px;">El vencimiento se calcula a 11 meses de la Fecha de Ocurrencia. El cliente se vincula por nombre — si no coincide con ninguno del CRM, la tarea se crea igual, sin vincular.</small>
+            <div id="mensaje-siniestros-fp" style="color:var(--secondary); font-size:13px; margin-bottom:15px;"></div>
+            <div class="table-wrapper" style="margin-top:0;">
+              <table>
+                <thead>
+                  <tr><th>Fecha de Importación</th><th>Archivo(s)</th><th>Cantidad</th><th>Ocurrencia Desde</th><th>Ocurrencia Hasta</th></tr>
+                </thead>
+                <tbody id="cuerpo-tabla-historial-siniestros-fp"></tbody>
+              </table>
+            </div>
           </div>
 
         </div>

@@ -27,7 +27,11 @@ function validarLogin(usuario, password) {
       let passDb = datos[i][1].toString().trim();
       
       if (userDb === usuario.toString().trim() && passDb === password.toString().trim()) {
-        return { exito: true, usuario: userDb };
+        // Devolvemos el nombre legible (columna C, "Responsable"), no el
+        // usuario de login en sí — así queda identificado por su nombre
+        // en Usuario/Responsable de TAREAS y en los comentarios automáticos.
+        const nombreResponsable = (datos[i][2] || "").toString().trim();
+        return { exito: true, usuario: nombreResponsable || userDb };
       }
     }
     return { exito: false, mensaje: "Usuario o contraseña incorrectos" };

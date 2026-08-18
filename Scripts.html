@@ -342,6 +342,7 @@
       cargarHistorialClientesFP();
       cargarHistorialVencimientosRIV();
       cargarHistorialVencimientosPS();
+      cargarHistorialSiniestrosFP();
     }
   }
 
@@ -1603,6 +1604,91 @@
 
   function renderHistorialVencimientosPS(historial) {
     const tbody = document.getElementById('cuerpo-tabla-historial-vencimientos-ps');
+    tbody.innerHTML = '';
+
+    if (!historial || historial.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--secondary);">Todavía no se importó ningún archivo</td></tr>`;
+      return;
+    }
+
+    historial.forEach(h => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${h.fecha || ''}</td>
+        <td>${h.archivos || ''}</td>
+        <td>${h.cantidad || 0}</td>
+        <td>${h.desde || ''}</td>
+        <td>${h.hasta || ''}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // =========================================================================
+  // MÓDULO SINIESTROS FP
+  // =========================================================================
+  function subirYProcesarSiniestrosFP() {
+    const input = document.getElementById('siniestros-fp-archivo');
+    const archivo = input.files[0];
+    const mensajeEl = document.getElementById('mensaje-siniestros-fp');
+
+    if (!archivo) {
+      mensajeEl.innerText = "Elegí un archivo CSV primero.";
+      return;
+    }
+
+    const btn = document.getElementById('btn-procesar-siniestros-fp');
+    btn.disabled = true;
+    mensajeEl.innerText = "Subiendo archivo...";
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64 = e.target.result;
+      google.script.run
+        .withSuccessHandler(resultadoSubida => {
+          if (!resultadoSubida.exito) {
+            mensajeEl.innerText = "Error al subir: " + resultadoSubida.mensaje;
+            btn.disabled = false;
+            return;
+          }
+          mensajeEl.innerText = "Archivo subido. Procesando siniestros...";
+          google.script.run
+            .withSuccessHandler(resultado => {
+              mensajeEl.innerText = "Listo: se crearon " + resultado.tareasCreadas + " tareas nuevas (" + resultado.omitidas + " siniestros ya estaban cargados, " + resultado.sinVincular + " sin cliente vinculado por nombre).";
+              input.value = "";
+              btn.disabled = false;
+              uiConsultarSiniestros();
+              cargarHistorialSiniestrosFP();
+            })
+            .withFailureHandler(error => {
+              mensajeEl.innerText = "Error al procesar: " + error.message;
+              btn.disabled = false;
+            })
+            .procesarSiniestrosFP();
+        })
+        .withFailureHandler(error => {
+          mensajeEl.innerText = "Error al subir: " + error.message;
+          btn.disabled = false;
+        })
+        .subirCSVSiniestrosFP(base64, archivo.name);
+    };
+    reader.readAsDataURL(archivo);
+  }
+
+  function cargarHistorialSiniestrosFP() {
+    const tbody = document.getElementById('cuerpo-tabla-historial-siniestros-fp');
+    google.script.run
+      .withSuccessHandler(historial => {
+        renderHistorialSiniestrosFP(historial);
+      })
+      .withFailureHandler(error => {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger);">Error al cargar el historial: ${error.message}</td></tr>`;
+      })
+      .obtenerHistorialSiniestrosFP();
+  }
+
+  function renderHistorialSiniestrosFP(historial) {
+    const tbody = document.getElementById('cuerpo-tabla-historial-siniestros-fp');
     tbody.innerHTML = '';
 
     if (!historial || historial.length === 0) {
