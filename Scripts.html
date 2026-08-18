@@ -338,11 +338,7 @@
       uiConsultarVencimientosFP();
     }
     if(id === 'importar') {
-      cargarHistorialVencimientosFP();
-      cargarHistorialClientesFP();
-      cargarHistorialVencimientosRIV();
-      cargarHistorialVencimientosPS();
-      cargarHistorialSiniestrosFP();
+      ocultarHistorialCompartido();
     }
   }
 
@@ -864,6 +860,141 @@
     }
   }
 
+  // Muestra/oculta el historial de una tarjeta de Importar, y cambia el
+  // texto del botón entre "Ver historial" / "Ocultar historial".
+
+  // Habilita arrastrar-y-soltar sobre una .dropzone, además del clic de
+  // toda la vida para abrir el selector de archivos. Muestra el nombre
+  // del archivo elegido dentro de la propia tarjeta.
+  // Configuración de cada tipo de historial del módulo Importar: qué
+  // columnas mostrar, en qué orden, y qué función del servidor llamar.
+  // Agregar un tipo nuevo acá alcanza para que funcione en la sección
+  // compartida — no hace falta escribir una función de render por tipo.
+  const HISTORIAL_CONFIG = {
+    'vencimientos-fp': {
+      titulo: 'Vencimientos FP',
+      columnas: ['Fecha', 'Productor', 'Cantidad', 'Vencimiento Desde', 'Vencimiento Hasta'],
+      campos: ['fechaImportacion', 'productor', 'cantidad', 'desde', 'hasta'],
+      fnObtener: 'obtenerHistorialVencimientosFP'
+    },
+    'clientes-fp': {
+      titulo: 'Clientes FP',
+      columnas: ['Fecha', 'Archivo(s)', 'Clientes Nuevos', 'Clientes Actualizados'],
+      campos: ['fecha', 'archivos', 'nuevos', 'actualizados'],
+      fnObtener: 'obtenerHistorialClientesFP'
+    },
+    'vencimientos-riv': {
+      titulo: 'Vencimientos RIV',
+      columnas: ['Fecha', 'Cantidad', 'Vencimiento Desde', 'Vencimiento Hasta'],
+      campos: ['fecha', 'cantidad', 'desde', 'hasta'],
+      fnObtener: 'obtenerHistorialVencimientosRIV'
+    },
+    'vencimientos-ps': {
+      titulo: 'Vencimientos PS',
+      columnas: ['Fecha', 'Archivo(s)', 'Cantidad', 'Vencimiento Desde', 'Vencimiento Hasta'],
+      campos: ['fecha', 'archivos', 'cantidad', 'desde', 'hasta'],
+      fnObtener: 'obtenerHistorialVencimientosPS'
+    },
+    'siniestros-fp': {
+      titulo: 'Siniestros FP',
+      columnas: ['Fecha', 'Archivo(s)', 'Cantidad', 'Ocurrencia Desde', 'Ocurrencia Hasta'],
+      campos: ['fecha', 'archivos', 'cantidad', 'desde', 'hasta'],
+      fnObtener: 'obtenerHistorialSiniestrosFP'
+    },
+    'siniestros-ps': {
+      titulo: 'Siniestros PS',
+      columnas: ['Fecha', 'Archivo(s)', 'Cantidad', 'Ocurrencia Desde', 'Ocurrencia Hasta'],
+      campos: ['fecha', 'archivos', 'cantidad', 'desde', 'hasta'],
+      fnObtener: 'obtenerHistorialSiniestrosPS'
+    }
+  };
+
+  // Muestra en la sección compartida (arriba de las tarjetas) el
+  // historial del tipo elegido. Si ya había otro abierto, lo reemplaza.
+  function mostrarHistorialCompartido(tipo, btnEl) {
+    const config = HISTORIAL_CONFIG[tipo];
+    if (!config) return;
+
+    document.querySelectorAll('.btn-ver-historial').forEach(b => b.classList.remove('activo'));
+    if (btnEl) btnEl.classList.add('activo');
+
+    const seccion = document.getElementById('historial-compartido');
+    const titulo = document.getElementById('historial-compartido-titulo');
+    const thead = document.getElementById('historial-compartido-thead');
+    const tbody = document.getElementById('historial-compartido-tbody');
+
+    titulo.innerText = 'Historial de Importación — ' + config.titulo;
+    thead.innerHTML = '<tr>' + config.columnas.map(c => `<th>${c}</th>`).join('') + '</tr>';
+    tbody.innerHTML = `<tr><td colspan="${config.columnas.length}" style="text-align:center; color:var(--secondary);">Cargando...</td></tr>`;
+    seccion.style.display = 'block';
+    seccion.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    google.script.run
+      .withSuccessHandler(historial => {
+        if (!historial || historial.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="${config.columnas.length}" style="text-align:center; color:var(--secondary);">Todavía no se importó ningún archivo</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = '';
+        historial.forEach(h => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = config.campos.map(campo => `<td>${(h[campo] !== undefined && h[campo] !== null) ? h[campo] : ''}</td>`).join('');
+          tbody.appendChild(tr);
+        });
+      })
+      .withFailureHandler(error => {
+        tbody.innerHTML = `<tr><td colspan="${config.columnas.length}" style="text-align:center; color:var(--danger);">Error al cargar el historial: ${error.message}</td></tr>`;
+      })
+      [config.fnObtener]();
+  }
+
+  function ocultarHistorialCompartido() {
+    const seccion = document.getElementById('historial-compartido');
+    if (seccion) seccion.style.display = 'none';
+    document.querySelectorAll('.btn-ver-historial').forEach(b => b.classList.remove('activo'));
+  }
+
+  function configurarDropzone(dropzoneId, inputId) {
+    const dropzone = document.getElementById(dropzoneId);
+    const input = document.getElementById(inputId);
+    if (!dropzone || !input) return;
+
+    const nombreEl = dropzone.querySelector('.dropzone-nombre-archivo');
+    const mostrarNombre = () => {
+      if (nombreEl) nombreEl.innerText = input.files[0] ? input.files[0].name : '';
+    };
+
+    input.addEventListener('change', mostrarNombre);
+
+    dropzone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('dragover');
+    });
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        input.files = e.dataTransfer.files;
+        mostrarNombre();
+      }
+    });
+  }
+
+  // Se configuran todas las tarjetas de Importar una sola vez, apenas
+  // carga la página (los elementos ya existen en el DOM aunque el módulo
+  // esté oculto, así que no hace falta esperar a entrar a "Importar").
+  document.addEventListener('DOMContentLoaded', () => {
+    configurarDropzone('dropzone-vencimientos-fp', 'vencimientos-fp-archivo');
+    configurarDropzone('dropzone-clientes-fp', 'clientes-fp-archivo');
+    configurarDropzone('dropzone-vencimientos-riv', 'vencimientos-riv-archivo');
+    configurarDropzone('dropzone-vencimientos-ps', 'vencimientos-ps-archivo');
+    configurarDropzone('dropzone-siniestros-fp', 'siniestros-fp-archivo');
+    configurarDropzone('dropzone-siniestros-ps', 'siniestros-ps-archivo');
+  });
+
   function mostrarMensajeExito(texto) {
     const toast = document.createElement('div');
     toast.className = 'toast-notificacion';
@@ -1355,7 +1486,7 @@
               input.value = "";
               btn.disabled = false;
               uiConsultarVencimientosFP();
-              cargarHistorialVencimientosFP();
+              mostrarHistorialCompartido('vencimientos-fp');
             })
             .withFailureHandler(error => {
               mensajeEl.innerText = "Error al procesar: " + error.message;
@@ -1405,7 +1536,7 @@
               mensajeEl.innerText = "Listo: " + resultado.nuevos + " clientes nuevos en CLIENTES FP, " + resultado.actualizados + " actualizados. En el CRM: " + resultado.nuevosCRM + " clientes nuevos, " + resultado.actualizadosCRM + " actualizados.";
               input.value = "";
               btn.disabled = false;
-              cargarHistorialClientesFP();
+              mostrarHistorialCompartido('clientes-fp');
             })
             .withFailureHandler(error => {
               mensajeEl.innerText = "Error al procesar: " + error.message;
@@ -1422,38 +1553,7 @@
     reader.readAsDataURL(archivo);
   }
 
-  function cargarHistorialClientesFP() {
-    const tbody = document.getElementById('cuerpo-tabla-historial-clientes-fp');
-    google.script.run
-      .withSuccessHandler(historial => {
-        renderHistorialClientesFP(historial);
-      })
-      .withFailureHandler(error => {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger);">Error al cargar el historial: ${error.message}</td></tr>`;
-      })
-      .obtenerHistorialClientesFP();
-  }
 
-  function renderHistorialClientesFP(historial) {
-    const tbody = document.getElementById('cuerpo-tabla-historial-clientes-fp');
-    tbody.innerHTML = '';
-
-    if (!historial || historial.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--secondary);">Todavía no se importó ningún archivo</td></tr>`;
-      return;
-    }
-
-    historial.forEach(h => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${h.fecha || ''}</td>
-        <td>${h.archivos || ''}</td>
-        <td>${h.nuevos || 0}</td>
-        <td>${h.actualizados || 0}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
 
   // =========================================================================
   // MÓDULO VENCIMIENTOS RIV
@@ -1489,7 +1589,7 @@
               input.value = "";
               btn.disabled = false;
               uiConsultarVencimientosFP();
-              cargarHistorialVencimientosRIV();
+              mostrarHistorialCompartido('vencimientos-riv');
             })
             .withFailureHandler(error => {
               mensajeEl.innerText = "Error al procesar: " + error.message;
@@ -1506,38 +1606,7 @@
     reader.readAsDataURL(archivo);
   }
 
-  function cargarHistorialVencimientosRIV() {
-    const tbody = document.getElementById('cuerpo-tabla-historial-vencimientos-riv');
-    google.script.run
-      .withSuccessHandler(historial => {
-        renderHistorialVencimientosRIV(historial);
-      })
-      .withFailureHandler(error => {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger);">Error al cargar el historial: ${error.message}</td></tr>`;
-      })
-      .obtenerHistorialVencimientosRIV();
-  }
 
-  function renderHistorialVencimientosRIV(historial) {
-    const tbody = document.getElementById('cuerpo-tabla-historial-vencimientos-riv');
-    tbody.innerHTML = '';
-
-    if (!historial || historial.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--secondary);">Todavía no se importó ningún archivo</td></tr>`;
-      return;
-    }
-
-    historial.forEach(h => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${h.fecha || ''}</td>
-        <td>${h.cantidad || 0}</td>
-        <td>${h.desde || ''}</td>
-        <td>${h.hasta || ''}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
 
   // =========================================================================
   // MÓDULO VENCIMIENTOS PS
@@ -1573,7 +1642,7 @@
               input.value = "";
               btn.disabled = false;
               uiConsultarVencimientosFP();
-              cargarHistorialVencimientosPS();
+              mostrarHistorialCompartido('vencimientos-ps');
             })
             .withFailureHandler(error => {
               mensajeEl.innerText = "Error al procesar: " + error.message;
@@ -1590,39 +1659,7 @@
     reader.readAsDataURL(archivo);
   }
 
-  function cargarHistorialVencimientosPS() {
-    const tbody = document.getElementById('cuerpo-tabla-historial-vencimientos-ps');
-    google.script.run
-      .withSuccessHandler(historial => {
-        renderHistorialVencimientosPS(historial);
-      })
-      .withFailureHandler(error => {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger);">Error al cargar el historial: ${error.message}</td></tr>`;
-      })
-      .obtenerHistorialVencimientosPS();
-  }
 
-  function renderHistorialVencimientosPS(historial) {
-    const tbody = document.getElementById('cuerpo-tabla-historial-vencimientos-ps');
-    tbody.innerHTML = '';
-
-    if (!historial || historial.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--secondary);">Todavía no se importó ningún archivo</td></tr>`;
-      return;
-    }
-
-    historial.forEach(h => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${h.fecha || ''}</td>
-        <td>${h.archivos || ''}</td>
-        <td>${h.cantidad || 0}</td>
-        <td>${h.desde || ''}</td>
-        <td>${h.hasta || ''}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
 
   // =========================================================================
   // MÓDULO SINIESTROS FP
@@ -1658,7 +1695,7 @@
               input.value = "";
               btn.disabled = false;
               uiConsultarSiniestros();
-              cargarHistorialSiniestrosFP();
+              mostrarHistorialCompartido('siniestros-fp');
             })
             .withFailureHandler(error => {
               mensajeEl.innerText = "Error al procesar: " + error.message;
@@ -1675,39 +1712,60 @@
     reader.readAsDataURL(archivo);
   }
 
-  function cargarHistorialSiniestrosFP() {
-    const tbody = document.getElementById('cuerpo-tabla-historial-siniestros-fp');
-    google.script.run
-      .withSuccessHandler(historial => {
-        renderHistorialSiniestrosFP(historial);
-      })
-      .withFailureHandler(error => {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger);">Error al cargar el historial: ${error.message}</td></tr>`;
-      })
-      .obtenerHistorialSiniestrosFP();
-  }
 
-  function renderHistorialSiniestrosFP(historial) {
-    const tbody = document.getElementById('cuerpo-tabla-historial-siniestros-fp');
-    tbody.innerHTML = '';
 
-    if (!historial || historial.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--secondary);">Todavía no se importó ningún archivo</td></tr>`;
+  // =========================================================================
+  // MÓDULO SINIESTROS PS
+  // =========================================================================
+  function subirYProcesarSiniestrosPS() {
+    const input = document.getElementById('siniestros-ps-archivo');
+    const archivo = input.files[0];
+    const mensajeEl = document.getElementById('mensaje-siniestros-ps');
+
+    if (!archivo) {
+      mensajeEl.innerText = "Elegí un archivo .xls primero.";
       return;
     }
 
-    historial.forEach(h => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${h.fecha || ''}</td>
-        <td>${h.archivos || ''}</td>
-        <td>${h.cantidad || 0}</td>
-        <td>${h.desde || ''}</td>
-        <td>${h.hasta || ''}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+    const btn = document.getElementById('btn-procesar-siniestros-ps');
+    btn.disabled = true;
+    mensajeEl.innerText = "Subiendo archivo...";
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64 = e.target.result;
+      google.script.run
+        .withSuccessHandler(resultadoSubida => {
+          if (!resultadoSubida.exito) {
+            mensajeEl.innerText = "Error al subir: " + resultadoSubida.mensaje;
+            btn.disabled = false;
+            return;
+          }
+          mensajeEl.innerText = "Archivo subido. Procesando siniestros...";
+          google.script.run
+            .withSuccessHandler(resultado => {
+              mensajeEl.innerText = "Listo: se crearon " + resultado.tareasCreadas + " tareas nuevas (" + resultado.omitidas + " siniestros ya estaban cargados, " + resultado.sinVincular + " sin cliente vinculado por nombre).";
+              input.value = "";
+              btn.disabled = false;
+              uiConsultarSiniestros();
+              mostrarHistorialCompartido('siniestros-ps');
+            })
+            .withFailureHandler(error => {
+              mensajeEl.innerText = "Error al procesar: " + error.message;
+              btn.disabled = false;
+            })
+            .procesarSiniestrosPS();
+        })
+        .withFailureHandler(error => {
+          mensajeEl.innerText = "Error al subir: " + error.message;
+          btn.disabled = false;
+        })
+        .subirXLSSiniestrosPS(base64, archivo.name);
+    };
+    reader.readAsDataURL(archivo);
   }
+
+
 
   function uiConsultarVencimientosFP() {
     const tbody = document.getElementById('cuerpo-tabla-vencimientos-fp');
@@ -1725,39 +1783,7 @@
       .obtenerVencimientosFP();
   }
 
-  function cargarHistorialVencimientosFP() {
-    const tbody = document.getElementById('cuerpo-tabla-historial-vencimientos-fp');
-    google.script.run
-      .withSuccessHandler(historial => {
-        renderHistorialVencimientosFP(historial);
-      })
-      .withFailureHandler(error => {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger);">Error al cargar el historial: ${error.message}</td></tr>`;
-      })
-      .obtenerHistorialVencimientosFP();
-  }
 
-  function renderHistorialVencimientosFP(historial) {
-    const tbody = document.getElementById('cuerpo-tabla-historial-vencimientos-fp');
-    tbody.innerHTML = '';
-
-    if (!historial || historial.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--secondary);">Todavía no se importó ningún archivo</td></tr>`;
-      return;
-    }
-
-    historial.forEach(h => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${h.fechaImportacion || ''}</td>
-        <td>${h.productor || ''}</td>
-        <td>${h.cantidad || ''}</td>
-        <td>${h.desde || ''}</td>
-        <td>${h.hasta || ''}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
 
   function poblarFiltrosVencimientosFP(lista) {
     const selResponsable = document.getElementById('filtro-responsable-vencimientos-fp');
