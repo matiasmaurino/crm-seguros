@@ -132,6 +132,14 @@
                   <option value="Todos">Ramo: Todos</option>
                 </select>
               </div>
+
+              <div class="filtro-siniestros-venc" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px;">
+                <button onclick="filtrarSiniestrosPorDias(3, 'venc3-btn')" class="btn-filter venc3-btn" style="background-color: var(--warning); color: white;">Vence en 3 días</button>
+                <button onclick="filtrarSiniestrosPorDias(7, 'venc7-btn')" class="btn-filter venc7-btn" style="background-color: var(--warning); color: white;">Vence en una semana</button>
+                <button onclick="filtrarSiniestrosPorDias(30, 'venc30-btn')" class="btn-filter venc30-btn" style="background-color: var(--warning); color: white;">Vence en un mes</button>
+                <button onclick="filtrarSiniestrosPorDias(180, 'venc180-btn')" class="btn-filter venc180-btn" style="background-color: var(--warning); color: white;">Vence en 6 meses</button>
+                <button onclick="filtrarSiniestrosPorDias(330, 'venc330-btn')" class="btn-filter venc330-btn" style="background-color: var(--warning); color: white;">Vence en 11 meses</button>
+              </div>
             </div>
 
             <div class="table-wrapper">

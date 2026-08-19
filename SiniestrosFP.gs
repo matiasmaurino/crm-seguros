@@ -195,7 +195,21 @@ function procesarSiniestrosFP() {
         return;
       }
 
-      const responsable = (productor === "21438") ? "Matias" : "Pilar";
+let responsable;
+
+if (productor === "21438") {
+  responsable = "Matias";
+} else {
+  const ramoUpper = String(ramo || "").toUpperCase().trim();
+  
+  if (ramoUpper === "AUTOMOVILES" || ramoUpper === "AUTOMOTORES") {
+    responsable = "Pilar";
+  } else if (ramoUpper === "INTEGRALES") {
+    responsable = "Mauro";
+  } else {
+    responsable = "Mariana";
+  }
+}
       const nombreNormalizado = normalizarNombreParaMatch(asegurado);
       const idCliente = mapaClientes[nombreNormalizado] || "";
       if (!idCliente) sinVincular++;

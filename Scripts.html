@@ -1285,10 +1285,39 @@
     aplicarFiltrosSiniestros();
   }
 
+  // Estado del filtro de "vence en X días" de Siniestros — separado del
+  // que usa Historial Tareas (filtroVencimientoActual) para no pisarse.
+  let filtroVencimientoSiniestros = "";
+
+  function gestionarClasesFiltroSiniestros(claseBotonActivo) {
+    const botones = document.querySelectorAll('.filtro-siniestros-venc .btn-filter');
+    botones.forEach(btn => btn.classList.remove('active'));
+    if (claseBotonActivo) {
+      const btnActivo = document.querySelector(`.filtro-siniestros-venc .${claseBotonActivo}`);
+      if (btnActivo) btnActivo.classList.add('active');
+    }
+  }
+
+  function filtrarSiniestrosPorDias(dias, claseBoton) {
+    const btn = document.querySelector(`.filtro-siniestros-venc .${claseBoton}`);
+    const yaEstabaActivo = btn && btn.classList.contains('active');
+
+    filtroVencimientoSiniestros = "";
+    gestionarClasesFiltroSiniestros('');
+
+    if (!yaEstabaActivo) {
+      filtroVencimientoSiniestros = dias;
+      gestionarClasesFiltroSiniestros(claseBoton);
+    }
+    aplicarFiltrosSiniestros();
+  }
+
   function limpiarFiltrosSiniestros() {
     document.getElementById('buscador-siniestro').value = "";
     document.getElementById('filtro-responsable-siniestros').value = "Todos";
     document.getElementById('filtro-ramo-siniestros').value = "Todos";
+    filtroVencimientoSiniestros = "";
+    gestionarClasesFiltroSiniestros('');
     aplicarFiltrosSiniestros();
   }
 
@@ -1296,6 +1325,8 @@
     const texto = document.getElementById('buscador-siniestro').value.toLowerCase().trim();
     const responsable = document.getElementById('filtro-responsable-siniestros').value;
     const ramo = document.getElementById('filtro-ramo-siniestros').value;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
 
     const filtradas = cacheSiniestros.filter(s => {
       if (responsable !== "Todos" && s.responsable !== responsable) return false;
@@ -1304,6 +1335,15 @@
       if (texto !== "") {
         const campoBusqueda = [s.numeroSiniestro, s.clienteNombre, s.ramo, s.compania, s.descripcion].join(" ");
         if (!coincideBusquedaCliente(campoBusqueda, texto)) return false;
+      }
+
+      if (filtroVencimientoSiniestros !== "") {
+        if (!s.vencimiento || s.estado === 'Terminado') return false;
+        const fVenc = new Date(s.vencimiento + "T00:00:00");
+        const limite = new Date();
+        limite.setDate(hoy.getDate() + filtroVencimientoSiniestros);
+        limite.setHours(23, 59, 59, 999);
+        if (fVenc < hoy || fVenc > limite) return false;
       }
 
       return true;
