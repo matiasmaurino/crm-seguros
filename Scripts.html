@@ -468,6 +468,13 @@
         limpiarFormTarea();
         const btnConsulta = document.querySelector('button[onclick*="consulta"]');
         mostrarSeccion('consulta', btnConsulta);
+        // Refrescamos también las cachés de las pantallas filtradas
+        // (Siniestros, Cobranzas, Vencimientos) — si no, al volver a esas
+        // pantallas después de editar una tarea desde ahí, seguían
+        // mostrando los datos de antes de guardar.
+        if (typeof uiConsultarSiniestros === 'function') uiConsultarSiniestros();
+        if (typeof uiConsultarCobranzas === 'function') uiConsultarCobranzas();
+        if (typeof uiConsultarVencimientosFP === 'function') uiConsultarVencimientosFP();
       }).guardarTarea(t, usuarioLogueado); 
     };
 
@@ -897,14 +904,14 @@
     },
     'siniestros-fp': {
       titulo: 'Siniestros FP',
-      columnas: ['Fecha', 'Archivo(s)', 'Cantidad', 'Ocurrencia Desde', 'Ocurrencia Hasta'],
-      campos: ['fecha', 'archivos', 'cantidad', 'desde', 'hasta'],
+      columnas: ['Fecha', 'Archivo(s)', 'Nuevas', 'Actualizadas', 'Ocurrencia Desde', 'Ocurrencia Hasta'],
+      campos: ['fecha', 'archivos', 'cantidad', 'actualizadas', 'desde', 'hasta'],
       fnObtener: 'obtenerHistorialSiniestrosFP'
     },
     'siniestros-ps': {
       titulo: 'Siniestros PS',
-      columnas: ['Fecha', 'Archivo(s)', 'Cantidad', 'Ocurrencia Desde', 'Ocurrencia Hasta'],
-      campos: ['fecha', 'archivos', 'cantidad', 'desde', 'hasta'],
+      columnas: ['Fecha', 'Archivo(s)', 'Nuevas', 'Actualizadas', 'Ocurrencia Desde', 'Ocurrencia Hasta'],
+      campos: ['fecha', 'archivos', 'cantidad', 'actualizadas', 'desde', 'hasta'],
       fnObtener: 'obtenerHistorialSiniestrosPS'
     }
   };
@@ -1691,7 +1698,7 @@
           mensajeEl.innerText = "Archivo subido. Procesando siniestros...";
           google.script.run
             .withSuccessHandler(resultado => {
-              mensajeEl.innerText = "Listo: se crearon " + resultado.tareasCreadas + " tareas nuevas (" + resultado.omitidas + " siniestros ya estaban cargados, " + resultado.sinVincular + " sin cliente vinculado por nombre).";
+              mensajeEl.innerText = "Listo: " + resultado.tareasCreadas + " tareas nuevas, " + resultado.actualizadas + " actualizadas (ya existían, se les agregó un comentario), " + resultado.sinVincular + " sin cliente vinculado por nombre.";
               input.value = "";
               btn.disabled = false;
               uiConsultarSiniestros();
@@ -1744,7 +1751,7 @@
           mensajeEl.innerText = "Archivo subido. Procesando siniestros...";
           google.script.run
             .withSuccessHandler(resultado => {
-              mensajeEl.innerText = "Listo: se crearon " + resultado.tareasCreadas + " tareas nuevas (" + resultado.omitidas + " siniestros ya estaban cargados, " + resultado.sinVincular + " sin cliente vinculado por nombre).";
+              mensajeEl.innerText = "Listo: " + resultado.tareasCreadas + " tareas nuevas, " + resultado.actualizadas + " actualizadas (ya existían, se les agregó un comentario), " + resultado.sinVincular + " sin cliente vinculado por nombre.";
               input.value = "";
               btn.disabled = false;
               uiConsultarSiniestros();

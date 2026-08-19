@@ -4,14 +4,27 @@
 // 4: Asegurado 5: Fecha Denuncia (sin uso) 6: Fecha Ocurrencia
 // 7: Estado 8: Tipo de Siniestro 9: N° de Siniestro 10: Causa
 //
-// Por cada fila cuyo N° de Siniestro no tenga ya una tarea creada, se
-// genera una tarea Tipo="Siniestro" con Vencimiento = Fecha Ocurrencia +
-// 11 meses. Compañía siempre "Federación Patronal". Responsable: "Matias"
-// si el código de Productor es 21438, si no "Pilar". El Ramo sale del
-// código antes de la primera "/" en la Póliza, cruzado contra la columna
-// FP de la hoja AUX (mismo mecanismo que Vencimientos FP). El cliente se
-// vincula por nombre (Asegurado) contra CLIENTES — si no coincide, la
-// tarea se crea igual, sin vincular.
+// Por cada fila:
+// - Si el N° de Siniestro NO tiene tarea creada todavía: se crea una
+//   tarea Tipo="Siniestro", con Fecha de Creación = Fecha de Ocurrencia
+//   (no la fecha en que se corre la importación). Compañía siempre
+//   "Federación Patronal". Responsable: "Matias" si el código de
+//   Productor es 21438, si no "Pilar". El Ramo sale del código antes de
+//   la primera "/" en la Póliza, cruzado contra la columna FP de AUX. El
+//   cliente se vincula por nombre (Asegurado) contra CLIENTES.
+// - Si el N° de Siniestro YA tiene una tarea creada (pasa seguido, porque
+//   los siniestros se importan una vez por semana o dos, no en el momento
+//   en que se cargan): no se crea una tarea nueva ni se toca su Estado,
+//   Responsable o Vencimiento — se le agrega un comentario nuevo arriba
+//   de los que ya tenía, igual que "Agregar Comentario" en la pantalla,
+//   para no perder el historial de seguimiento que se haya cargado a mano
+//   mientras tanto.
+//
+// Todas las actualizaciones a tareas ya existentes se acumulan en memoria
+// y se escriben en una sola operación al final — con reportes grandes,
+// la mayoría de las filas suelen ser siniestros que ya estaban cargados,
+// así que evitar una escritura por fila importa para no volver a toparnos
+// con timeouts.
 
 const ID_CARPETA_SINIESTROS_FP = "1uh2TrJnvYRKf056_Z1XjmH3iHkFpcRUU";
 
@@ -34,20 +47,33 @@ function moverArchivoSiniestrosFPAProcesado(file, folderOrigen) {
   folderOrigen.removeFile(file);
 }
 
-function registrarImportacionSiniestrosFP(ss, nombresArchivos, cantidad, minFecha, maxFecha) {
+/**
+ * Igual formato que usa "Agregar Comentario" en la pantalla ("13/8/26
+ * 15:15hs"): día y mes sin cero adelante, año en 2 dígitos, hora sin cero
+ * adelante, minutos con cero adelante. Definida acá, reutilizada también
+ * por SiniestrosPS.gs.
+ */
+function formatearFechaComentarioBackend(fecha) {
+  const dia = fecha.getDate();
+  const mes = fecha.getMonth() + 1;
+  const anio = fecha.getFullYear().toString().slice(-2);
+  const horas = fecha.getHours();
+  const minutos = ("0" + fecha.getMinutes()).slice(-2);
+  return dia + "/" + mes + "/" + anio + " " + horas + ":" + minutos + "hs";
+}
+
+function registrarImportacionSiniestrosFP(ss, nombresArchivos, cantidadNuevas, cantidadActualizadas, minFecha, maxFecha) {
   let hoja = ss.getSheetByName("REGISTRO_SINIESTROS_FP");
   if (!hoja) {
     hoja = ss.insertSheet("REGISTRO_SINIESTROS_FP");
   }
   if (hoja.getLastRow() === 0) {
-    hoja.appendRow(["Fecha de Importación", "Archivo(s)", "Cantidad de Tareas", "Ocurrencia Más Antigua", "Ocurrencia Más Reciente"]);
+    hoja.appendRow(["Fecha de Importación", "Archivo(s)", "Tareas Nuevas", "Tareas Actualizadas", "Ocurrencia Más Antigua", "Ocurrencia Más Reciente"]);
   }
-  if (cantidad > 0) {
-    hoja.appendRow([new Date(), nombresArchivos.join(", "), cantidad, minFecha, maxFecha]);
-    const ultimaFila = hoja.getLastRow();
-    hoja.getRange(ultimaFila, 1, 1, 1).setNumberFormat("dd/mm/yyyy hh:mm");
-    hoja.getRange(ultimaFila, 4, 1, 2).setNumberFormat("dd/mm/yyyy");
-  }
+  hoja.appendRow([new Date(), nombresArchivos.join(", "), cantidadNuevas, cantidadActualizadas, minFecha, maxFecha]);
+  const ultimaFila = hoja.getLastRow();
+  hoja.getRange(ultimaFila, 1, 1, 1).setNumberFormat("dd/mm/yyyy hh:mm");
+  hoja.getRange(ultimaFila, 5, 1, 2).setNumberFormat("dd/mm/yyyy");
 }
 
 function obtenerHistorialSiniestrosFP() {
@@ -63,9 +89,16 @@ function obtenerHistorialSiniestrosFP() {
 
   return filas.map(fila => {
     const fecha = (fila[0] instanceof Date) ? Utilities.formatDate(fila[0], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy HH:mm") : "";
-    const desde = (fila[3] instanceof Date) ? Utilities.formatDate(fila[3], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy") : "";
-    const hasta = (fila[4] instanceof Date) ? Utilities.formatDate(fila[4], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy") : "";
-    return { fecha: fecha, archivos: fila[1] || "", cantidad: fila[2] || 0, desde: desde, hasta: hasta };
+    const desde = (fila[4] instanceof Date) ? Utilities.formatDate(fila[4], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy") : "";
+    const hasta = (fila[5] instanceof Date) ? Utilities.formatDate(fila[5], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy") : "";
+    return {
+      fecha: fecha,
+      archivos: fila[1] || "",
+      cantidad: fila[2] || 0,
+      actualizadas: fila[3] || 0,
+      desde: desde,
+      hasta: hasta
+    };
   }).reverse();
 }
 
@@ -77,14 +110,20 @@ function procesarSiniestrosFP() {
   const mapaRamoFP = obtenerMapaRamoFP(); // ya definida en VencimientosFP.gs
   const mapaClientes = obtenerMapaClientesPorNombre(ss); // ya definida en VencimientosRIV.gs
 
-  // N° de Siniestro que ya tienen tarea creada (columna P de TAREAS)
   const datosTareas = hojaTareas.getDataRange().getValues();
+  const totalFilasOriginales = datosTareas.length;
+
+  // N° de Siniestro que ya tienen tarea creada -> índice dentro de datosTareas
   const siniestrosYaCreados = new Set();
+  const filaPorSiniestro = {};
   for (let i = 1; i < datosTareas.length; i++) {
     const tipoTarea = (datosTareas[i][3] || "").toString().trim().toLowerCase();
     const compania = (datosTareas[i][2] || "").toString().trim().toLowerCase();
     const numSin = (datosTareas[i][15] || "").toString().trim();
-    if (tipoTarea === "siniestro" && compania === "federación patronal" && numSin) siniestrosYaCreados.add(numSin);
+    if (tipoTarea === "siniestro" && compania === "federación patronal" && numSin) {
+      siniestrosYaCreados.add(numSin);
+      filaPorSiniestro[numSin] = i;
+    }
   }
 
   const folder = DriveApp.getFolderById(ID_CARPETA_SINIESTROS_FP);
@@ -93,21 +132,22 @@ function procesarSiniestrosFP() {
   while (iterador.hasNext()) archivosCSV.push(iterador.next());
 
   if (archivosCSV.length === 0) {
-    return { exito: true, tareasCreadas: 0, omitidas: 0, sinVincular: 0, mensaje: "No hay archivos nuevos para procesar." };
+    return { exito: true, tareasCreadas: 0, actualizadas: 0, omitidas: 0, sinVincular: 0, mensaje: "No hay archivos nuevos para procesar." };
   }
 
   let idTareaActual = 0;
-  const ultimaFilaTareas = hojaTareas.getLastRow();
-  if (ultimaFilaTareas > 1) {
-    idTareaActual = Number(hojaTareas.getRange(ultimaFilaTareas, 2).getValue()) || 0;
+  if (totalFilasOriginales > 1) {
+    idTareaActual = Number(datosTareas[totalFilasOriginales - 1][1]) || 0;
   }
 
   const filasNuevas = [];
   let filasOmitidas = 0;
+  let filasActualizadas = 0;
   let sinVincular = 0;
   let minFecha = null;
   let maxFecha = null;
   const nombresArchivos = [];
+  let huboActualizacionesEnMemoria = false;
 
   archivosCSV.forEach(file => {
     nombresArchivos.push(file.getName());
@@ -124,33 +164,49 @@ function procesarSiniestrosFP() {
       const numSiniestro = (fila[9] || "").toString().trim();
       const causa = (fila[10] || "").toString().trim();
 
-      if (!numSiniestro || siniestrosYaCreados.has(numSiniestro)) {
-        if (numSiniestro) filasOmitidas++;
+      if (!numSiniestro) {
+        filasOmitidas++;
         return;
       }
 
       const fechaOcurrencia = new Date(fechaOcurrenciaRaw + "T12:00:00");
-      if (isNaN(fechaOcurrencia)) return;
+      const fechaOcurrenciaValida = !isNaN(fechaOcurrencia);
 
       const codigoRamo = poliza.split("/")[0].trim();
       const ramo = mapaRamoFP[codigoRamo] || "";
+      const lineaInfo = "Póliza " + poliza +
+        (tipoSiniestro ? " - " + tipoSiniestro : "") +
+        (causa ? " - " + causa : "");
+
+      if (siniestrosYaCreados.has(numSiniestro)) {
+        // Ya existe: fusionamos un comentario nuevo arriba de los que ya
+        // tenía, sin tocar Estado/Responsable/Vencimiento de la tarea.
+        const idx = filaPorSiniestro[numSiniestro];
+        const lineaConFecha = formatearFechaComentarioBackend(new Date()) + " " + lineaInfo;
+        const descripcionActual = (datosTareas[idx][4] || "").toString().trim();
+        datosTareas[idx][4] = descripcionActual ? (lineaConFecha + "\n" + descripcionActual) : lineaConFecha;
+        huboActualizacionesEnMemoria = true;
+        filasActualizadas++;
+
+        if (fechaOcurrenciaValida) {
+          if (!minFecha || fechaOcurrencia < minFecha) minFecha = fechaOcurrencia;
+          if (!maxFecha || fechaOcurrencia > maxFecha) maxFecha = fechaOcurrencia;
+        }
+        return;
+      }
 
       const responsable = (productor === "21438") ? "Matias" : "Pilar";
-
       const nombreNormalizado = normalizarNombreParaMatch(asegurado);
       const idCliente = mapaClientes[nombreNormalizado] || "";
       if (!idCliente) sinVincular++;
 
       idTareaActual++;
       filasNuevas.push([
-        new Date(),                    // A: Fecha Creación
+        fechaOcurrenciaValida ? fechaOcurrencia : new Date(), // A: Fecha Creación = Fecha de Ocurrencia
         idTareaActual,                  // B: ID Tarea
         "Federación Patronal",           // C: Compañía (siempre)
         "Siniestro",                      // D: Tipo de Tarea
-        "Siniestro " + numSiniestro + " - Póliza " + poliza +
-          (tipoSiniestro ? " - " + tipoSiniestro : "") +
-          (causa ? " - " + causa : "") +
-          " - Asegurado: " + asegurado,  // E: Descripción
+        lineaInfo,                         // E: Descripción
         "",                                // F: Vencimiento — se deja vacío, se carga a mano cuando haga falta
         "Sin leer",                       // G: Estado
         "",                                // H
@@ -159,35 +215,41 @@ function procesarSiniestrosFP() {
         "",                                // K: Adjunto
         idCliente,                         // L: ID Cliente
         "Sistema",                         // M: Usuario
-        responsable,                       // N: Responsable (Matias si productor 21438, si no Pilar)
+        responsable,                       // N: Responsable
         ramo,                              // O: Ramo
         numSiniestro                       // P: N° Siniestro
       ]);
 
       siniestrosYaCreados.add(numSiniestro); // por si el mismo siniestro aparece 2 veces en el mismo archivo
 
-      if (!minFecha || fechaOcurrencia < minFecha) minFecha = fechaOcurrencia;
-      if (!maxFecha || fechaOcurrencia > maxFecha) maxFecha = fechaOcurrencia;
+      if (fechaOcurrenciaValida) {
+        if (!minFecha || fechaOcurrencia < minFecha) minFecha = fechaOcurrencia;
+        if (!maxFecha || fechaOcurrencia > maxFecha) maxFecha = fechaOcurrencia;
+      }
     });
 
     moverArchivoSiniestrosFPAProcesado(file, folder);
   });
 
+  // Primero volcamos las actualizaciones a tareas existentes (todas juntas)
+  if (huboActualizacionesEnMemoria) {
+    hojaTareas.getRange(1, 1, totalFilasOriginales, datosTareas[0].length).setValues(datosTareas);
+  }
+
+  // Recién después agregamos las tareas realmente nuevas al final
   if (filasNuevas.length > 0) {
     const filaInicio = hojaTareas.getLastRow() + 1;
     hojaTareas.getRange(filaInicio, 1, filasNuevas.length, 16).setValues(filasNuevas);
+  }
 
-    // Ya no agendamos en Calendar acá: sin Vencimiento no hay fecha para
-    // el evento, y de paso esto era la parte más lenta del proceso (una
-    // llamada a Calendar por cada tarea). Si más adelante alguien le carga
-    // un Vencimiento a mano desde la ficha de la tarea, el agendado normal
-    // de guardarTarea() se encarga solo en ese momento.
-    registrarImportacionSiniestrosFP(ss, nombresArchivos, filasNuevas.length, minFecha, maxFecha);
+  if (filasNuevas.length > 0 || filasActualizadas > 0) {
+    registrarImportacionSiniestrosFP(ss, nombresArchivos, filasNuevas.length, filasActualizadas, minFecha, maxFecha);
   }
 
   return {
     exito: true,
     tareasCreadas: filasNuevas.length,
+    actualizadas: filasActualizadas,
     omitidas: filasOmitidas,
     sinVincular: sinVincular
   };

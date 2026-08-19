@@ -162,7 +162,12 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
     gap: 20px;
-    align-items: start;
+    align-items: stretch;
+  }
+
+  .importar-card {
+    display: flex;
+    flex-direction: column;
   }
 
   .importar-card {
@@ -242,7 +247,7 @@
     font-weight: 600;
     cursor: pointer;
     padding: 6px 0;
-    margin-top: 10px;
+    margin-top: auto;
   }
 
   .btn-ver-historial:hover {

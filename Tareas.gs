@@ -39,6 +39,7 @@ function obtenerTareas() {
       adjunto: r[10],
       responsable: r[13],
       ramo: r[14] || "",
+      numeroSiniestro: r[15] || "",
       usuario: r[12] || "-"
     };
   }).filter(t => t.compania !== "" && t.estado !== "Eliminada").reverse(); 
@@ -65,7 +66,7 @@ function guardarTarea(t, usuarioActivo) {
     const vencNuevoStr = (nuevoVencimiento instanceof Date) ? nuevoVencimiento.toDateString() : "";
     if (vencAnteriorStr !== vencNuevoStr) vencimientoCambio = true;
 
-    hoja.getRange(filaActual, 3, 1, 13).setValues([[
+    hoja.getRange(filaActual, 3, 1, 14).setValues([[
       t.compania,                    // C
       t.tipoTarea,                   // D
       t.descripcion,                 // E
@@ -78,7 +79,8 @@ function guardarTarea(t, usuarioActivo) {
       t.idCliente,                   // L
       usuarioActivo || "Sistema",    // M
       t.responsable || "",           // N
-      t.ramo || ""                   // O
+      t.ramo || "",                  // O
+      t.numeroSiniestro || ""        // P
     ]]);
 
     // Si cambió el vencimiento, borramos el evento viejo y agendamos uno nuevo
@@ -121,7 +123,8 @@ function guardarTarea(t, usuarioActivo) {
       t.idCliente,
       usuarioActivo || "Sistema",
       t.responsable || "",
-      t.ramo || ""
+      t.ramo || "",
+      t.numeroSiniestro || ""
     ];
 
     hoja.appendRow(filaValores);
@@ -137,16 +140,6 @@ function guardarTarea(t, usuarioActivo) {
   }
 }
 
-/**
- * Elimina "blandamente" una tarea: en vez de borrar la fila con deleteRow()
- * (una operación estructural que corre todas las filas de abajo hacia
- * arriba, muy pesada en una hoja grande — probablemente la causa de que a
- * veces se quedara trabada procesando), simplemente le pone Estado =
- * "Eliminada". obtenerTareas() ya filtra ese estado, así que deja de verse
- * en Historial Tareas, Siniestros, Vencimientos FP, etc. sin necesidad de
- * tocar la estructura de la hoja. La fila queda en TAREAS por si hace
- * falta auditarla después.
- */
 /**
  * Actualiza solo la columna Descripción (E) de una tarea existente — usada
  * por "Agregar Comentario" para guardar cada línea nueva al toque, sin
@@ -167,6 +160,16 @@ function actualizarDescripcionTarea(idFila, nuevaDescripcion) {
   return { exito: true };
 }
 
+/**
+ * Elimina "blandamente" una tarea: en vez de borrar la fila con deleteRow()
+ * (una operación estructural que corre todas las filas de abajo hacia
+ * arriba, muy pesada en una hoja grande — probablemente la causa de que a
+ * veces se quedara trabada procesando), simplemente le pone Estado =
+ * "Eliminada". obtenerTareas() ya filtra ese estado, así que deja de verse
+ * en Historial Tareas, Siniestros, Vencimientos FP, etc. sin necesidad de
+ * tocar la estructura de la hoja. La fila queda en TAREAS por si hace
+ * falta auditarla después.
+ */
 function marcarTareaComoEliminada(idFila) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const hoja = ss.getSheetByName("TAREAS");

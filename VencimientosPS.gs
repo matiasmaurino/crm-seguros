@@ -47,13 +47,24 @@ function moverArchivoVencimientoPSAProcesado(file, folderOrigen) {
  * Convierte un archivo .xlsx a una Google Sheet temporal para poder leer
  * sus datos, y borra la copia temporal al terminar.
  */
+/**
+ * Lee un .xls/.xlsx directamente con la librería SheetJS (LibreriaXLSX.gs),
+ * sin depender del conversor de Google Drive — ya no hace falta el
+ * servicio avanzado "Drive API" para esto.
+ */
 function leerFilasDeXLSX(file) {
-  const resource = { name: "temp_convert_ps", mimeType: MimeType.GOOGLE_SHEETS };
-  const tempFile = Drive.Files.create(resource, file.getBlob());
-  const tempSpreadsheet = SpreadsheetApp.openById(tempFile.id);
-  const tempSheet = tempSpreadsheet.getSheets()[0];
-  const datos = tempSheet.getDataRange().getValues();
-  Drive.Files.remove(tempFile.id);
+  const bytesConSigno = file.getBlob().getBytes();
+
+  // Apps Script devuelve los bytes CON signo (-128 a 127, por venir de
+  // Java); SheetJS espera bytes SIN signo (0 a 255).
+  const bytes = new Array(bytesConSigno.length);
+  for (let i = 0; i < bytesConSigno.length; i++) {
+    bytes[i] = bytesConSigno[i] < 0 ? bytesConSigno[i] + 256 : bytesConSigno[i];
+  }
+
+  const libro = XLSX.read(bytes, { type: "array" });
+  const primeraHoja = libro.Sheets[libro.SheetNames[0]];
+  const datos = XLSX.utils.sheet_to_json(primeraHoja, { header: 1 });
   return datos;
 }
 
@@ -217,74 +228,4 @@ function procesarVencimientosPS() {
     omitidas: filasOmitidas,
     sinVincular: sinVincular
   };
-}
-/**
- * FUNCIÓN TEMPORAL DE DIAGNÓSTICO — no hace falta dejarla en el proyecto
- * después de usarla, la podés borrar.
- *
- * Ejecutala directo desde el editor (elegila en el desplegable de arriba,
- * apretá ▶️ Ejecutar) y después mirá el log: Ver → Registros de ejecución
- * (o el ícono del relojito ⏱ a la izquierda).
- */
-function diagnosticoHistorialPS() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  Logger.log("Spreadsheet activo: " + ss.getName() + " (" + ss.getId() + ")");
-
-  const hoja = ss.getSheetByName("REGISTRO_VENCIMIENTOS_PS");
-  if (!hoja) {
-    Logger.log("No se encontró la hoja REGISTRO_VENCIMIENTOS_PS en este spreadsheet.");
-    return;
-  }
-
-  const data = hoja.getDataRange().getValues();
-  Logger.log("Filas totales leídas (incluye encabezado): " + data.length);
-  Logger.log("Contenido crudo: " + JSON.stringify(data));
-
-  const resultado = obtenerHistorialVencimientosPS();
-  Logger.log("Lo que devuelve obtenerHistorialVencimientosPS(): " + JSON.stringify(resultado));
-
-}
-
-/**
- * EJECUTAR MANUALMENTE UNA SOLA VEZ: corrige la fila vieja de
- * REGISTRO_VENCIMIENTOS_PS que quedó con el formato de 4 columnas (de
- * antes de agregar "Archivo(s)"), y que ahora se lee corrida un lugar.
- * La deja con: Archivo(s) vacío (no lo sabemos, es de antes de este
- * cambio), Cantidad, Vencimiento Más Antiguo y Vencimiento Más Reciente
- * en sus columnas correctas.
- */
-function corregirFilaViejaHistorialPS() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName("REGISTRO_VENCIMIENTOS_PS");
-  if (!hoja) {
-    Logger.log("No se encontró la hoja REGISTRO_VENCIMIENTOS_PS.");
-    return;
-  }
-
-  const data = hoja.getDataRange().getValues();
-  if (data.length < 2) {
-    Logger.log("No hay filas de datos para corregir.");
-    return;
-  }
-
-  // Detectamos si el encabezado actual es el de 4 columnas (viejo) o el de 5 (nuevo)
-  const encabezado = data[0];
-  const esEncabezadoViejo = encabezado.length <= 4 || encabezado[1] !== "Archivo(s)";
-
-  if (!esEncabezadoViejo) {
-    Logger.log("El encabezado ya está actualizado, no hay nada para corregir.");
-    return;
-  }
-
-  // Reescribimos el encabezado nuevo
-  hoja.getRange(1, 1, 1, 5).setValues([["Fecha de Importación", "Archivo(s)", "Cantidad de Tareas", "Vencimiento Más Antiguo", "Vencimiento Más Reciente"]]);
-
-  // Corremos cada fila vieja: [Fecha, Cantidad, Desde, Hasta] -> [Fecha, "", Cantidad, Desde, Hasta]
-  const filasCorregidas = data.slice(1).map(fila => [fila[0], "", fila[1], fila[2], fila[3]]);
-
-  hoja.getRange(2, 1, filasCorregidas.length, 5).setValues(filasCorregidas);
-  hoja.getRange(2, 1, filasCorregidas.length, 1).setNumberFormat("dd/mm/yyyy hh:mm");
-  hoja.getRange(2, 4, filasCorregidas.length, 2).setNumberFormat("dd/mm/yyyy");
-
-  Logger.log("Corregidas " + filasCorregidas.length + " fila(s).");
 }
