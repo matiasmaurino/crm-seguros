@@ -121,24 +121,23 @@
               <input type="text" id="buscador-siniestro" placeholder="Buscar por N° de siniestro, cliente, ramo..." onkeyup="filtrarTablaSiniestros()" style="width: 100%; margin-bottom: 12px;">
               <div style="width: 100%; border-bottom: 1px solid #eee; margin-bottom: 12px;"></div>
 
-              <div class="filter-buttons" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                <button onclick="limpiarFiltrosSiniestros()" class="btn-limpiar" style="background-color: #6c757d; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+              <div class="filtro-siniestros-fila" style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; overflow-x: auto; width: 100%; padding-bottom: 2px;">
+                <button onclick="limpiarFiltrosSiniestros()" class="btn-limpiar" style="background-color: #6c757d; color: white; border: none; height: 34px; padding: 0 12px; border-radius: 4px; font-weight: bold; font-size: 13px; cursor: pointer; white-space: nowrap;">
                   Limpiar Filtros
                 </button>
-                <select id="filtro-responsable-siniestros" onchange="aplicarFiltrosSiniestros()" class="form-select" style="width: auto;">
+                
+                <button onclick="filtrarSiniestrosVencidas()" class="btn-filter vencidas-sin-btn" style="background-color: var(--danger); color: white; height: 34px; padding: 0 12px; font-size: 13px; white-space: nowrap;">Vencidas</button>
+                <button onclick="filtrarSiniestrosPorDias(3, 'venc3-btn')" class="btn-filter venc3-btn" style="background-color: #d35400; color: white; height: 34px; padding: 0 12px; font-size: 13px; white-space: nowrap;">3 días</button>
+                <button onclick="filtrarSiniestrosPorDias(7, 'venc7-btn')" class="btn-filter venc7-btn" style="background-color: var(--warning); color: white; height: 34px; padding: 0 12px; font-size: 13px; white-space: nowrap;">1 semana</button>
+                <button onclick="filtrarSiniestrosPorDias(30, 'venc30-btn')" class="btn-filter venc30-btn" style="background-color: #ffc107; color: white; height: 34px; padding: 0 12px; font-size: 13px; white-space: nowrap;">1 mes</button>
+                <button onclick="filtrarSiniestrosPorDias(180, 'venc180-btn')" class="btn-filter venc180-btn" style="background-color: #28a745; color: white; height: 34px; padding: 0 12px; font-size: 13px; white-space: nowrap;">6 meses</button>
+                <button onclick="filtrarSiniestrosPorDias(330, 'venc330-btn')" class="btn-filter venc330-btn" style="background-color: #03a9f4; color: white; height: 34px; padding: 0 12px; font-size: 13px; white-space: nowrap;">11 meses</button>
+              <select id="filtro-responsable-siniestros" onchange="aplicarFiltrosSiniestros()" class="form-select" style="width: auto; height: 34px; padding: 0 8px; font-size: 13px; box-sizing: border-box;">
                   <option value="Todos">Responsable: Todos</option>
                 </select>
-                <select id="filtro-ramo-siniestros" onchange="aplicarFiltrosSiniestros()" class="form-select" style="width: auto;">
+                <select id="filtro-ramo-siniestros" onchange="aplicarFiltrosSiniestros()" class="form-select" style="width: auto; height: 34px; padding: 0 8px; font-size: 13px; box-sizing: border-box;">
                   <option value="Todos">Ramo: Todos</option>
                 </select>
-              </div>
-
-              <div class="filtro-siniestros-venc" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px;">
-                <button onclick="filtrarSiniestrosPorDias(3, 'venc3-btn')" class="btn-filter venc3-btn" style="background-color: var(--warning); color: white;">Vence en 3 días</button>
-                <button onclick="filtrarSiniestrosPorDias(7, 'venc7-btn')" class="btn-filter venc7-btn" style="background-color: var(--warning); color: white;">Vence en una semana</button>
-                <button onclick="filtrarSiniestrosPorDias(30, 'venc30-btn')" class="btn-filter venc30-btn" style="background-color: var(--warning); color: white;">Vence en un mes</button>
-                <button onclick="filtrarSiniestrosPorDias(180, 'venc180-btn')" class="btn-filter venc180-btn" style="background-color: var(--warning); color: white;">Vence en 6 meses</button>
-                <button onclick="filtrarSiniestrosPorDias(330, 'venc330-btn')" class="btn-filter venc330-btn" style="background-color: var(--warning); color: white;">Vence en 11 meses</button>
               </div>
             </div>
 

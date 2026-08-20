@@ -26,7 +26,6 @@
 // así que evitar una escritura por fila importa para no volver a toparnos
 // con timeouts.
 
-const ID_CARPETA_SINIESTROS_FP = "1uh2TrJnvYRKf056_Z1XjmH3iHkFpcRUU";
 
 function subirCSVSiniestrosFP(base64, nombreArchivo) {
   try {

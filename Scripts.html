@@ -1290,16 +1290,16 @@
   let filtroVencimientoSiniestros = "";
 
   function gestionarClasesFiltroSiniestros(claseBotonActivo) {
-    const botones = document.querySelectorAll('.filtro-siniestros-venc .btn-filter');
+    const botones = document.querySelectorAll('.filtro-siniestros-fila .btn-filter');
     botones.forEach(btn => btn.classList.remove('active'));
     if (claseBotonActivo) {
-      const btnActivo = document.querySelector(`.filtro-siniestros-venc .${claseBotonActivo}`);
+      const btnActivo = document.querySelector(`.filtro-siniestros-fila .${claseBotonActivo}`);
       if (btnActivo) btnActivo.classList.add('active');
     }
   }
 
   function filtrarSiniestrosPorDias(dias, claseBoton) {
-    const btn = document.querySelector(`.filtro-siniestros-venc .${claseBoton}`);
+    const btn = document.querySelector(`.filtro-siniestros-fila .${claseBoton}`);
     const yaEstabaActivo = btn && btn.classList.contains('active');
 
     filtroVencimientoSiniestros = "";
@@ -1308,6 +1308,20 @@
     if (!yaEstabaActivo) {
       filtroVencimientoSiniestros = dias;
       gestionarClasesFiltroSiniestros(claseBoton);
+    }
+    aplicarFiltrosSiniestros();
+  }
+
+  function filtrarSiniestrosVencidas() {
+    const btn = document.querySelector('.filtro-siniestros-fila .vencidas-sin-btn');
+    const yaEstabaActivo = btn && btn.classList.contains('active');
+
+    filtroVencimientoSiniestros = "";
+    gestionarClasesFiltroSiniestros('');
+
+    if (!yaEstabaActivo) {
+      filtroVencimientoSiniestros = "vencidas";
+      gestionarClasesFiltroSiniestros('vencidas-sin-btn');
     }
     aplicarFiltrosSiniestros();
   }
@@ -1337,7 +1351,11 @@
         if (!coincideBusquedaCliente(campoBusqueda, texto)) return false;
       }
 
-      if (filtroVencimientoSiniestros !== "") {
+      if (filtroVencimientoSiniestros === "vencidas") {
+        if (!s.vencimiento || s.estado === 'Terminado') return false;
+        const fVenc = new Date(s.vencimiento + "T00:00:00");
+        if (fVenc >= hoy) return false;
+      } else if (filtroVencimientoSiniestros !== "") {
         if (!s.vencimiento || s.estado === 'Terminado') return false;
         const fVenc = new Date(s.vencimiento + "T00:00:00");
         const limite = new Date();
