@@ -354,15 +354,17 @@
     }).obtenerTareas();
   }
 
-  function renderTabla(lista, idCuerpo) {
+  function renderTabla(lista, idCuerpo, mostrarTerminadas) {
     const tbody = document.getElementById(idCuerpo);
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    const esFiltroTerminado = lista.length > 0 && lista.every(t => t.estado === 'Terminado');
     let listaFiltrada = lista;
-    if (!esFiltroTerminado) {
-      listaFiltrada = lista.filter(t => t.estado !== 'Terminado');
+    if (!mostrarTerminadas) {
+      const esFiltroTerminado = lista.length > 0 && lista.every(t => t.estado === 'Terminado');
+      if (!esFiltroTerminado) {
+        listaFiltrada = lista.filter(t => t.estado !== 'Terminado');
+      }
     }
 
     if (listaFiltrada.length === 0) {
@@ -494,9 +496,19 @@
     document.getElementById('tarea-id-fila').value = t.id_fila;
     document.getElementById('tarea-estado-original').value = t.estado || "";
     document.getElementById('tarea-responsable-original').value = t.responsable || "";
-    document.getElementById('contenedor-seleccion-cliente').style.display = 'none';
-    document.getElementById('cliente-bloqueado').style.display = 'block';
-    document.getElementById('nombre-cliente-fijo').value = t.clienteNombre;
+
+    if (t.idCliente) {
+      // Ya tiene cliente vinculado: lo mostramos fijo, sin poder cambiarlo
+      // por accidente.
+      document.getElementById('contenedor-seleccion-cliente').style.display = 'none';
+      document.getElementById('cliente-bloqueado').style.display = 'block';
+      document.getElementById('nombre-cliente-fijo').value = t.clienteNombre;
+    } else {
+      // Sin cliente vinculado (por ejemplo, una importación que no pudo
+      // matchear el nombre): mostramos el buscador para poder asignarlo.
+      document.getElementById('contenedor-seleccion-cliente').style.display = 'block';
+      document.getElementById('cliente-bloqueado').style.display = 'none';
+    }
     document.getElementById('select-cliente').value = t.idCliente;
     document.getElementById('tarea-tipo').value = t.tipoTarea || "";
     document.getElementById('tarea-compania').value = t.compania;
@@ -597,7 +609,7 @@
     document.getElementById('btn-guardar-cliente').style.display = 'none';
 
     const tareasAsociadas = cacheTareas.filter(t => t.idCliente == idCliente);
-    renderTabla(tareasAsociadas, 'cuerpo-tabla-cliente-directo');
+    renderTabla(tareasAsociadas, 'cuerpo-tabla-cliente-directo', true);
     document.getElementById('modulo-tareas-asociadas').style.display = 'block';
 
     cargarPolizasCliente(idCliente);
@@ -854,16 +866,32 @@
     textareaDesc.value = nuevaDescripcion;
     inputComentario.value = "";
 
+    // Si la tarea seguía en "Sin leer" (el operador no la tocó a mano),
+    // al agregar un comentario la pasamos a "En proceso" sola. Si el
+    // operador ya la había cambiado a otra cosa desde el select, no la
+    // tocamos.
+    const selectEstado = document.getElementById('tarea-estado');
+    let nuevoEstado = null;
+    if (selectEstado && selectEstado.value === "Sin leer") {
+      selectEstado.value = "En proceso";
+      nuevoEstado = "En proceso";
+      // También actualizamos el "original" guardado, para que el chequeo
+      // de cambio de Estado al hacer "Guardar Tarea" no vuelva a anotar
+      // este mismo cambio una segunda vez.
+      const estadoOriginalInput = document.getElementById('tarea-estado-original');
+      if (estadoOriginalInput) estadoOriginalInput.value = "En proceso";
+    }
+
     const idFila = document.getElementById('tarea-id-fila').value;
     if (idFila) {
       google.script.run
         .withSuccessHandler(() => {
-          mostrarMensajeExito("Comentario agregado");
+          mostrarMensajeExito("Comentario agregado" + (nuevoEstado ? " — Estado pasó a En proceso" : ""));
         })
         .withFailureHandler(error => {
           mostrarMensajeExito("Error al guardar el comentario: " + error.message);
         })
-        .actualizarDescripcionTarea(idFila, nuevaDescripcion);
+        .actualizarDescripcionTarea(idFila, nuevaDescripcion, nuevoEstado);
     }
   }
 
@@ -904,8 +932,8 @@
     },
     'siniestros-fp': {
       titulo: 'Siniestros FP',
-      columnas: ['Fecha', 'Archivo(s)', 'Nuevas', 'Actualizadas', 'Ocurrencia Desde', 'Ocurrencia Hasta'],
-      campos: ['fecha', 'archivos', 'cantidad', 'actualizadas', 'desde', 'hasta'],
+      columnas: ['Fecha', 'Archivo(s)', 'Nuevas', 'Actualizadas', 'Ocurrencia Desde', 'Ocurrencia Hasta', 'Productor'],
+      campos: ['fecha', 'archivos', 'cantidad', 'actualizadas', 'desde', 'hasta', 'productor'],
       fnObtener: 'obtenerHistorialSiniestrosFP'
     },
     'siniestros-ps': {
@@ -1024,7 +1052,7 @@
     google.script.run.withSuccessHandler(t => {
       cacheTareas = t;
       const tareasAsociadas = cacheTareas.filter(x => x.idCliente == idCliente);
-      renderTabla(tareasAsociadas, 'cuerpo-tabla-cliente-directo');
+      renderTabla(tareasAsociadas, 'cuerpo-tabla-cliente-directo', true);
       document.getElementById('modulo-tareas-asociadas').style.display = 'block';
     }).obtenerTareas();
   }

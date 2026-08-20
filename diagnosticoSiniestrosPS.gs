@@ -1,4 +1,52 @@
 /**
+ * EJECUTAR MANUALMENTE UNA SOLA VEZ: corrige las filas viejas de
+ * REGISTRO_SINIESTROS_FP que quedaron en el formato de 5 columnas (de
+ * antes de agregar "Tareas Actualizadas"), insertándoles un 0 en esa
+ * columna y corriendo el resto un lugar, para que coincidan con las filas
+ * nuevas de 6 columnas.
+ *
+ * Detecta el formato viejo mirando si la columna D (índice 3) es una
+ * fecha — en el formato nuevo esa columna es un número (Tareas
+ * Actualizadas), nunca una fecha.
+ */
+function migrarRegistroSiniestrosFPA6Columnas() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName("REGISTRO_SINIESTROS_FP");
+  if (!hoja) {
+    Logger.log("No se encontró la hoja REGISTRO_SINIESTROS_FP.");
+    return;
+  }
+
+  const data = hoja.getDataRange().getValues();
+  if (data.length < 2) {
+    Logger.log("No hay filas de datos para migrar.");
+    return;
+  }
+
+  // Reescribimos el encabezado correcto (6 columnas)
+  hoja.getRange(1, 1, 1, 6).setValues([[
+    "Fecha de Importación", "Archivo(s)", "Tareas Nuevas", "Tareas Actualizadas",
+    "Ocurrencia Más Antigua", "Ocurrencia Más Reciente"
+  ]]);
+
+  let corregidas = 0;
+  const filasCorregidas = data.slice(1).map(fila => {
+    const esFormatoViejo = fila[3] instanceof Date;
+    if (esFormatoViejo) {
+      corregidas++;
+      // Viejo: [Fecha, Archivo(s), Cantidad, minFecha, maxFecha]
+      // Nuevo: [Fecha, Archivo(s), Nuevas, Actualizadas(0), minFecha, maxFecha]
+      return [fila[0], fila[1], fila[2], 0, fila[3], fila[4]];
+    }
+    return [fila[0], fila[1], fila[2], fila[3], fila[4], fila[5]];
+  });
+
+  hoja.getRange(2, 1, filasCorregidas.length, 6).setValues(filasCorregidas);
+  hoja.getRange(2, 1, filasCorregidas.length, 1).setNumberFormat("dd/mm/yyyy hh:mm");
+  hoja.getRange(2, 5, filasCorregidas.length, 2).setNumberFormat("dd/mm/yyyy");
+
+  Logger.log("Filas corregidas (formato viejo -> nuevo): " + corregidas + " de " + filasCorregidas.length + " totales.");
+}/**
  * FUNCIÓN TEMPORAL DE DIAGNÓSTICO — se puede borrar después de usarla.
  * Busca el .xls de Siniestros PS (en la carpeta principal o ya movido a
  * "Procesados"), lo lee con leerFilasDeXLSX() y muestra en el log,

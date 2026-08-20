@@ -146,7 +146,15 @@ function guardarTarea(t, usuarioActivo) {
  * pasar por guardarTarea() (que además dispara lógica de calendario que
  * acá no hace falta).
  */
-function actualizarDescripcionTarea(idFila, nuevaDescripcion) {
+/**
+ * Actualiza la Descripción (E) de una tarea existente — usada por
+ * "Agregar Comentario" para guardar cada línea nueva al toque, sin pasar
+ * por guardarTarea() (que además dispara lógica de calendario que acá no
+ * hace falta). Opcionalmente también actualiza el Estado (G) en la misma
+ * escritura — se usa para pasar de "Sin leer" a "En proceso" solo cuando
+ * el operador no lo tocó él mismo desde el select.
+ */
+function actualizarDescripcionTarea(idFila, nuevaDescripcion, nuevoEstado) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const hoja = ss.getSheetByName("TAREAS");
   if (!hoja) throw new Error("No se encontró la hoja TAREAS");
@@ -157,6 +165,9 @@ function actualizarDescripcionTarea(idFila, nuevaDescripcion) {
   }
 
   hoja.getRange(filaNumero, 5).setValue(nuevaDescripcion); // Columna E: Descripción
+  if (nuevoEstado) {
+    hoja.getRange(filaNumero, 7).setValue(nuevoEstado); // Columna G: Estado
+  }
   return { exito: true };
 }
 

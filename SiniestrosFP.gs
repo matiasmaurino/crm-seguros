@@ -26,6 +26,7 @@
 // así que evitar una escritura por fila importa para no volver a toparnos
 // con timeouts.
 
+const ID_CARPETA_SINIESTROS_FP = "1uh2TrJnvYRKf056_Z1XjmH3iHkFpcRUU";
 
 function subirCSVSiniestrosFP(base64, nombreArchivo) {
   try {
@@ -61,15 +62,26 @@ function formatearFechaComentarioBackend(fecha) {
   return dia + "/" + mes + "/" + anio + " " + horas + ":" + minutos + "hs";
 }
 
-function registrarImportacionSiniestrosFP(ss, nombresArchivos, cantidadNuevas, cantidadActualizadas, minFecha, maxFecha) {
+/**
+ * Traduce el código de Productor del CSV a un nombre legible. Si aparece
+ * un código que todavía no conocemos, mostramos el código tal cual en vez
+ * de perderlo — así se nota que hay que agregarlo acá.
+ */
+function nombreProductorSiniestrosFP(codigo) {
+  if (codigo === "21438") return "Matias";
+  if (codigo === "35520") return "Mariana";
+  return codigo;
+}
+
+function registrarImportacionSiniestrosFP(ss, nombresArchivos, cantidadNuevas, cantidadActualizadas, minFecha, maxFecha, productor) {
   let hoja = ss.getSheetByName("REGISTRO_SINIESTROS_FP");
   if (!hoja) {
     hoja = ss.insertSheet("REGISTRO_SINIESTROS_FP");
   }
   if (hoja.getLastRow() === 0) {
-    hoja.appendRow(["Fecha de Importación", "Archivo(s)", "Tareas Nuevas", "Tareas Actualizadas", "Ocurrencia Más Antigua", "Ocurrencia Más Reciente"]);
+    hoja.appendRow(["Fecha de Importación", "Archivo(s)", "Tareas Nuevas", "Tareas Actualizadas", "Ocurrencia Más Antigua", "Ocurrencia Más Reciente", "Productor"]);
   }
-  hoja.appendRow([new Date(), nombresArchivos.join(", "), cantidadNuevas, cantidadActualizadas, minFecha, maxFecha]);
+  hoja.appendRow([new Date(), nombresArchivos.join(", "), cantidadNuevas, cantidadActualizadas, minFecha, maxFecha, productor || ""]);
   const ultimaFila = hoja.getLastRow();
   hoja.getRange(ultimaFila, 1, 1, 1).setNumberFormat("dd/mm/yyyy hh:mm");
   hoja.getRange(ultimaFila, 5, 1, 2).setNumberFormat("dd/mm/yyyy");
@@ -96,7 +108,8 @@ function obtenerHistorialSiniestrosFP() {
       cantidad: fila[2] || 0,
       actualizadas: fila[3] || 0,
       desde: desde,
-      hasta: hasta
+      hasta: hasta,
+      productor: fila[6] || ""
     };
   }).reverse();
 }
@@ -146,6 +159,7 @@ function procesarSiniestrosFP() {
   let minFecha = null;
   let maxFecha = null;
   const nombresArchivos = [];
+  const codigosProductorVistos = new Set();
   let huboActualizacionesEnMemoria = false;
 
   archivosCSV.forEach(file => {
@@ -157,6 +171,7 @@ function procesarSiniestrosFP() {
 
       const poliza = (fila[2] || "").toString().trim();
       const productor = (fila[3] || "").toString().trim();
+      if (productor) codigosProductorVistos.add(productor);
       const asegurado = (fila[4] || "").toString().trim();
       const fechaOcurrenciaRaw = (fila[6] || "").toString().trim(); // formato yyyy-mm-dd
       const tipoSiniestro = (fila[8] || "").toString().trim();
@@ -256,7 +271,10 @@ if (productor === "21438") {
   }
 
   if (filasNuevas.length > 0 || filasActualizadas > 0) {
-    registrarImportacionSiniestrosFP(ss, nombresArchivos, filasNuevas.length, filasActualizadas, minFecha, maxFecha);
+    const productorLabel = Array.from(codigosProductorVistos)
+      .map(codigo => nombreProductorSiniestrosFP(codigo))
+      .join(", ");
+    registrarImportacionSiniestrosFP(ss, nombresArchivos, filasNuevas.length, filasActualizadas, minFecha, maxFecha, productorLabel);
   }
 
   return {
