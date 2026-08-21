@@ -120,7 +120,7 @@
     }
 
     if (listaFinal.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">No se encontraron tareas pendientes</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--secondary);">No se encontraron tareas pendientes</td></tr>`;
       return;
     }
 
@@ -149,6 +149,7 @@
         <td>${t.compania || ''}</td>
         <td>${t.tipoTarea || ''}</td>
         <td style="font-weight:500; color:var(--zoho-nav);">${t.ramo || '-'}</td>
+        <td style="${colorEstadoTarea(t.estado)}">${t.estado || ''}</td>
         <td><span class="texto-descripcion" title="${t.descripcion || ''}">${t.descripcion || ''}</span></td>
       `;
       tbody.appendChild(tr);
@@ -368,7 +369,7 @@
     }
 
     if (listaFiltrada.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--secondary);">No se encontraron tareas pendientes</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--secondary);">No se encontraron tareas pendientes</td></tr>`;
       return;
     }
 
@@ -394,10 +395,24 @@
         </td>
         <td>${t.compania || ''}</td>
         <td>${t.tipoTarea || ''}</td>
-        <td style="font-weight:500; color:var(--zoho-nav);">${t.ramo || '-'}</td> <td><span class="texto-descripcion" title="${t.descripcion || ''}">${t.descripcion || ''}</span></td>
+        <td style="font-weight:500; color:var(--zoho-nav);">${t.ramo || '-'}</td>
+        <td style="${colorEstadoTarea(t.estado)}">${t.estado || ''}</td>
+        <td><span class="texto-descripcion" title="${t.descripcion || ''}">${t.descripcion || ''}</span></td>
       `;
       tbody.appendChild(tr);
     });
+  }
+
+  // Color de texto según el Estado de la tarea, para la columna Estado
+  // de renderTabla.
+  function colorEstadoTarea(estado) {
+    switch (estado) {
+      case 'Sin leer': return 'color:#6c757d; font-weight:600;';
+      case 'En proceso': return 'color:var(--primary); font-weight:600;';
+      case 'Control': return 'color:#ffc107; font-weight:600;';
+      case 'Terminado': return 'color:#28a745; font-weight:600;';
+      default: return '';
+    }
   }
 
   function uiGuardarTarea() {
@@ -1079,6 +1094,15 @@
       .obtenerPolizasPorCliente(idCliente);
   }
 
+  // Formatea un monto como moneda: "$", sin decimales, con "." como
+  // separador de miles (ej: 1234567 -> "$1.234.567"). Vacío si no es
+  // un número válido.
+  function formatearMoneda(valor) {
+    const num = parseFloat(valor);
+    if (isNaN(num)) return '';
+    return '$' + Math.round(num).toLocaleString('es-AR');
+  }
+
   // Comisión / Premio, expresado en porcentaje. Vacío si no hay datos numéricos.
   function calcularPorcentajeComision(premio, comision) {
     const p = parseFloat(premio);
@@ -1116,8 +1140,8 @@
         <td style="font-weight:500; color:var(--zoho-nav);">${p.ramo || '-'}${badge}</td>
         <td>${p.poliza || ''}</td>
         <td>${p.ultimaFecha || ''}</td>
-        <td>${p.premio || ''}</td>
-        <td>${p.comision || ''}</td>
+        <td>${formatearMoneda(p.premio)}</td>
+        <td>${formatearMoneda(p.comision)}</td>
         <td>${porcentajeComision}</td>
       `;
       cuerpo.appendChild(tr);
