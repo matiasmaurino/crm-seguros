@@ -872,7 +872,7 @@
       return;
     }
 
-    const lineaNueva = formatearFechaComentario(new Date()) + " " + texto;
+    const lineaNueva = formatearFechaComentario(new Date()) + " " + (usuarioLogueado || "Alguien") + ": " + texto;
 
     const textareaDesc = document.getElementById('tarea-desc');
     const descripcionActual = textareaDesc.value.trim();
