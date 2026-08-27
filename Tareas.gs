@@ -154,6 +154,55 @@ function guardarTarea(t, usuarioActivo) {
  * escritura — se usa para pasar de "Sin leer" a "En proceso" solo cuando
  * el operador no lo tocó él mismo desde el select.
  */
+/**
+ * Actualiza SOLO el Vencimiento (F) de una tarea existente — pensada para
+ * el módulo Calendario, cuando se arrastra una tarea de un día a otro.
+ * Reagenda el evento de Calendar (borra el viejo, crea uno nuevo), igual
+ * que hace guardarTarea() cuando detecta un cambio de fecha, pero sin
+ * necesitar reenviar el resto de los campos de la tarea. Opcionalmente
+ * también actualiza la Descripción (E) en la misma escritura — se usa
+ * para dejar anotado el comentario automático de cambio de vencimiento.
+ */
+function actualizarVencimientoTarea(idFila, nuevaFechaISO, nuevaDescripcion) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName("TAREAS");
+  if (!hoja) throw new Error("No se encontró la hoja TAREAS");
+
+  const filaNumero = Number(idFila);
+  if (filaNumero <= 1 || filaNumero > hoja.getLastRow()) {
+    throw new Error("Número de fila inválido.");
+  }
+
+  const idEventoAnterior = (hoja.getRange(filaNumero, 9).getValue() || "").toString().trim(); // Columna I
+  const nuevoVencimiento = nuevaFechaISO ? new Date(nuevaFechaISO + "T12:00:00") : "";
+
+  hoja.getRange(filaNumero, 6).setValue(nuevoVencimiento); // Columna F: Vencimiento
+  if (nuevaDescripcion !== undefined && nuevaDescripcion !== null) {
+    hoja.getRange(filaNumero, 5).setValue(nuevaDescripcion); // Columna E: Descripción
+  }
+
+  if (idEventoAnterior) {
+    try {
+      const cal = CalendarApp.getCalendarById(CALENDARIO_POR_DEFECTO);
+      const eventoViejo = cal ? cal.getEventById(idEventoAnterior) : null;
+      if (eventoViejo) eventoViejo.deleteEvent();
+    } catch (e) {
+      Logger.log("No se pudo borrar el evento anterior al mover la tarea (fila " + filaNumero + "): " + e.toString());
+    }
+    hoja.getRange(filaNumero, 9).setValue(""); // limpiamos el ID de evento viejo
+  }
+
+  if (nuevoVencimiento) {
+    try {
+      agendarTareaEnCalendar(filaNumero);
+    } catch (e) {
+      Logger.log("Error al reagendar en calendario al mover la tarea (fila " + filaNumero + "): " + e.toString());
+    }
+  }
+
+  return { exito: true };
+}
+
 function actualizarDescripcionTarea(idFila, nuevaDescripcion, nuevoEstado) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const hoja = ss.getSheetByName("TAREAS");

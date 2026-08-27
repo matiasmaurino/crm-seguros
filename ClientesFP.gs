@@ -59,17 +59,18 @@ function moverArchivoClientesFPAProcesado(file, folderOrigen) {
 /**
  * Registra en REGISTRO_IMPORTACION_CLIENTES_FP (en el mismo archivo de
  * Liquidaciones, se crea sola si no existe) una fila por cada importación,
- * con los archivos procesados y cuántos clientes se agregaron/actualizaron.
+ * con los archivos procesados, cuántos clientes se agregaron/actualizaron,
+ * y el Productor (según quién subió el archivo).
  */
-function registrarImportacionClientesFP(ss, nombresArchivos, nuevos, actualizados) {
+function registrarImportacionClientesFP(ss, nombresArchivos, nuevos, actualizados, productor) {
   let hoja = ss.getSheetByName("REGISTRO_IMPORTACION_CLIENTES_FP");
   if (!hoja) {
     hoja = ss.insertSheet("REGISTRO_IMPORTACION_CLIENTES_FP");
   }
   if (hoja.getLastRow() === 0) {
-    hoja.appendRow(["Fecha de Importación", "Archivo(s)", "Clientes Nuevos", "Clientes Actualizados"]);
+    hoja.appendRow(["Fecha de Importación", "Archivo(s)", "Clientes Nuevos", "Clientes Actualizados", "Productor"]);
   }
-  hoja.appendRow([new Date(), nombresArchivos.join(", "), nuevos, actualizados]);
+  hoja.appendRow([new Date(), nombresArchivos.join(", "), nuevos, actualizados, productor || ""]);
 }
 
 /**
@@ -92,7 +93,8 @@ function obtenerHistorialClientesFP() {
       fecha: fecha,
       archivos: fila[1] || "",
       nuevos: fila[2] || 0,
-      actualizados: fila[3] || 0
+      actualizados: fila[3] || 0,
+      productor: fila[4] || ""
     };
   }).reverse();
 }
@@ -214,7 +216,7 @@ function sincronizarClientesFPconCRM(ssCRM, ssLiq) {
  * procesados a "Procesados", y sincroniza los cambios con el CRM (agrega
  * clientes nuevos y actualiza Domicilio/Teléfono/Email de los existentes).
  */
-function procesarClientesFP() {
+function procesarClientesFP(usuarioActual) {
   const ss = SpreadsheetApp.openById(ID_SPREADSHEET_LIQUIDACIONES);
   const hoja = ss.getSheetByName("CLIENTES FP");
   if (!hoja) throw new Error("No se encontró la hoja CLIENTES FP en el archivo de Liquidaciones.");
@@ -298,7 +300,11 @@ function procesarClientesFP() {
     hoja.getRange(1, 1, resultadoFinal.length, COLUMNAS_CLIENTES_FP).setValues(resultadoFinal);
   });
 
-  registrarImportacionClientesFP(ss, nombresArchivos, nuevos, actualizados);
+  // El Productor se determina por quién sube el archivo, no por el
+  // contenido del CSV (que no trae ese dato): si lo sube Matias, el
+  // productor es Matias; cualquier otra persona, se asume Mariana.
+  const productor = (usuarioActual === "Matias") ? "Matias 21438" : "Mariana 35520";
+  registrarImportacionClientesFP(ss, nombresArchivos, nuevos, actualizados, productor);
 
   // Sincronizamos automáticamente con la hoja CLIENTES del CRM: agrega
   // clientes nuevos y actualiza Domicilio/Teléfono/Email de los existentes.
