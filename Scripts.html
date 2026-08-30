@@ -155,7 +155,7 @@
     const responsableEl = document.getElementById('calendario-filtro-responsable');
     const responsable = responsableEl ? responsableEl.value : 'Todos';
 
-    let tareas = (cacheTareas || []).filter(t => t.vencimiento);
+    let tareas = (cacheTareas || []).filter(t => t.vencimiento && t.estado !== 'Terminado');
     if (responsable && responsable !== 'Todos') {
       tareas = tareas.filter(t => t.responsable === responsable);
     }
@@ -173,7 +173,8 @@
     const tituloChip = (t.clienteNombre || 'Sin cliente') + ' - ' + (t.tipoTarea || '');
     const texto = (t.tipoTarea ? t.tipoTarea + ': ' : '') + (t.clienteNombre || 'Sin cliente');
     return `<div draggable="true"
-                ondragstart="dragStartTareaCalendario(event, ${t.id_fila})"
+                class="calendario-tarea-chip"
+                data-id-fila="${t.id_fila}"
                 onclick="prepararEdicionTarea('${jsonStr}')"
                 title="${tituloChip.replace(/"/g, '&quot;')}"
                 style="background:${colorTipoTarea(t.tipoTarea)}; color:white; font-size:11px; padding:2px 5px; border-radius:3px; margin-bottom:3px; cursor:grab; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${texto}</div>`;
@@ -189,6 +190,38 @@
     } else {
       renderCalendarioMes(tareas);
     }
+
+    configurarDragDropCalendario();
+  }
+
+  // Conecta el arrastrar-y-soltar con addEventListener (en vez de los
+  // atributos ondragover/ondrop puestos directo en el HTML), que es más
+  // confiable dentro del iframe sandboxeado donde corre Apps Script. Se
+  // llama de nuevo cada vez que se redibuja el calendario.
+  function configurarDragDropCalendario() {
+    document.querySelectorAll('.calendario-tarea-chip').forEach(chip => {
+      chip.addEventListener('dragstart', e => {
+        idTareaArrastradaCalendario = chip.getAttribute('data-id-fila');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', idTareaArrastradaCalendario);
+      });
+    });
+
+    document.querySelectorAll('.calendario-celda-drop').forEach(celda => {
+      celda.addEventListener('dragover', e => {
+        e.preventDefault();
+        celda.style.background = '#e8effe';
+        celda.style.borderColor = 'var(--primary)';
+      });
+      celda.addEventListener('dragleave', () => {
+        celda.style.background = 'white';
+      });
+      celda.addEventListener('drop', e => {
+        e.preventDefault();
+        celda.style.background = 'white';
+        procesarDropCalendario(celda.getAttribute('data-fecha'));
+      });
+    });
   }
 
   function renderCalendarioMes(tareas) {
@@ -229,9 +262,6 @@
       const borde = esHoy ? '2px solid var(--primary)' : '1px solid #eee';
 
       html += `<div class="calendario-celda-drop" data-fecha="${fechaISO}"
-                  ondragover="dragOverCeldaCalendario(event)"
-                  ondragleave="dragLeaveCeldaCalendario(event)"
-                  ondrop="dropCeldaCalendario(event)"
                   style="min-height:90px; max-height:150px; border:${borde}; border-radius:6px; padding:4px; background:white; overflow-y:auto;">
                   <div style="font-size:12px; font-weight:600; color:var(--secondary); margin-bottom:4px;">${dia}</div>
                   ${chips}
@@ -288,9 +318,6 @@
       const borde = esHoy ? '2px solid var(--primary)' : '1px solid #eee';
 
       html += `<div class="calendario-celda-drop" data-fecha="${fechaISO}"
-                  ondragover="dragOverCeldaCalendario(event)"
-                  ondragleave="dragLeaveCeldaCalendario(event)"
-                  ondrop="dropCeldaCalendario(event)"
                   style="min-height:340px; max-height:420px; border:${borde}; border-radius:6px; padding:6px; background:white; overflow-y:auto;">
                   <div style="text-align:center; font-size:12px; font-weight:600; color:${esHoy ? 'var(--primary)' : 'var(--secondary)'}; margin-bottom:6px; border-bottom:1px solid #eee; padding-bottom:6px;">
                     ${nombresDiaSemana[i]} ${dia.getDate()}
@@ -314,9 +341,6 @@
       .sort((a, b) => (a.clienteNombre || '').localeCompare(b.clienteNombre || ''));
 
     let html = `<div class="calendario-celda-drop" data-fecha="${fechaISO}"
-                  ondragover="dragOverCeldaCalendario(event)"
-                  ondragleave="dragLeaveCeldaCalendario(event)"
-                  ondrop="dropCeldaCalendario(event)"
                   style="min-height:400px; border:1px solid #eee; border-radius:6px; padding:12px;">`;
 
     if (tareasDelDia.length === 0) {
@@ -325,7 +349,8 @@
       tareasDelDia.forEach(t => {
         const jsonStr = encodeURIComponent(JSON.stringify(t));
         html += `<div draggable="true"
-                    ondragstart="dragStartTareaCalendario(event, ${t.id_fila})"
+                    class="calendario-tarea-chip"
+                    data-id-fila="${t.id_fila}"
                     onclick="prepararEdicionTarea('${jsonStr}')"
                     style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:6px; margin-bottom:6px; background:#f8fafc; cursor:grab; border-left:4px solid ${colorTipoTarea(t.tipoTarea)};">
                     <div style="flex:1;">
@@ -342,26 +367,7 @@
 
   let idTareaArrastradaCalendario = null;
 
-  function dragStartTareaCalendario(e, idFila) {
-    idTareaArrastradaCalendario = idFila;
-    e.dataTransfer.effectAllowed = 'move';
-  }
-
-  function dragOverCeldaCalendario(e) {
-    e.preventDefault();
-    e.currentTarget.style.background = '#e8effe';
-    e.currentTarget.style.borderColor = 'var(--primary)';
-  }
-
-  function dragLeaveCeldaCalendario(e) {
-    e.currentTarget.style.background = 'white';
-  }
-
-  function dropCeldaCalendario(e) {
-    e.preventDefault();
-    e.currentTarget.style.background = 'white';
-
-    const nuevaFecha = e.currentTarget.getAttribute('data-fecha');
+  function procesarDropCalendario(nuevaFecha) {
     if (!idTareaArrastradaCalendario || !nuevaFecha) return;
 
     const idFila = idTareaArrastradaCalendario;
@@ -584,12 +590,19 @@
             }
           });
 
-          // En el Calendario, dejamos preseleccionado al usuario logueado
-          // (si su nombre coincide con algún Responsable), para que cada
-          // uno vea sus propias tareas por defecto al entrar.
+          // En el Calendario y en Historial Tareas, dejamos preseleccionado
+          // al usuario logueado (si su nombre coincide con algún
+          // Responsable), para que cada uno vea sus propias tareas por
+          // defecto al entrar.
           const selectCalendario = document.getElementById('calendario-filtro-responsable');
           if (selectCalendario && responsables.includes(usuarioLogueado)) {
             selectCalendario.value = usuarioLogueado;
+          }
+
+          const selectHistorial = document.getElementById('filtro-responsable');
+          if (selectHistorial && responsables.includes(usuarioLogueado)) {
+            selectHistorial.value = usuarioLogueado;
+            filtroResponsableActual = usuarioLogueado;
           }
         }).obtenerResponsables();
         
@@ -813,6 +826,7 @@
         ramo: document.getElementById('tarea-ramo').value, 
         responsable: document.getElementById('tarea-responsable').value,
         numeroSiniestro: document.getElementById('tarea-numero-siniestro').value.trim(),
+        poliza: document.getElementById('tarea-poliza').value.trim(),
         descripcion: document.getElementById('tarea-desc').value,
         adjunto: url || ""
       };
@@ -820,8 +834,10 @@
       google.script.run.withSuccessHandler(r => {
         mostrarMensajeExito("Tarea guardada con éxito");
         limpiarFormTarea();
-        const btnConsulta = document.querySelector('button[onclick*="consulta"]');
-        mostrarSeccion('consulta', btnConsulta);
+        const idModuloDestino = moduloOrigenEdicionTarea || 'consulta';
+        const idBotonDestino = MODULO_A_BOTON_NAV[idModuloDestino] || 'nav-historial-tareas';
+        const btnDestino = document.getElementById(idBotonDestino);
+        mostrarSeccion(idModuloDestino, btnDestino);
         // Refrescamos también las cachés de las pantallas filtradas
         // (Siniestros, Cobranzas, Vencimientos) — si no, al volver a esas
         // pantallas después de editar una tarea desde ahí, seguían
@@ -841,8 +857,39 @@
     }
   }
 
+  // Mapeo de id de módulo -> id del botón de navegación correspondiente,
+  // para poder volver exactamente a donde estaba el usuario después de
+  // guardar una tarea (en vez de siempre ir a Historial Tareas).
+  const MODULO_A_BOTON_NAV = {
+    'consulta': 'nav-historial-tareas',
+    'calendario': 'nav-calendario',
+    'polizas': 'nav-polizas',
+    'siniestros': 'nav-siniestros',
+    'cobranzas': 'nav-cobranzas',
+    'vencimientos-fp': 'nav-vencimientos-fp',
+    'clientes': 'nav-clientes',
+    'importar': 'nav-importar',
+    'historial-cliente': 'nav-historial-cliente',
+    'renovaciones': 'nav-renovaciones'
+  };
+  let moduloOrigenEdicionTarea = 'consulta';
+
+  // Cuando se entra a "Nueva Tarea" desde el menú (no editando una que ya
+  // existía), el destino después de guardar vuelve a ser Historial Tareas.
+  function abrirNuevaTareaDesdeNav(btnEl) {
+    moduloOrigenEdicionTarea = 'consulta';
+    mostrarSeccion('tareas', btnEl);
+  }
+
   function prepararEdicionTarea(json) {
     const t = JSON.parse(decodeURIComponent(json));
+
+    // Guardamos desde qué módulo se abrió esta tarea (Calendario,
+    // Siniestros, etc.), para volver ahí después de guardar.
+    const moduloActivo = Array.from(document.querySelectorAll('.modulo'))
+      .find(m => m.style.display === 'block' && m.id !== 'tareas');
+    if (moduloActivo) moduloOrigenEdicionTarea = moduloActivo.id;
+
     const btnTarea = document.getElementById('nav-nueva-tarea');
     mostrarSeccion('tareas', btnTarea);
     document.getElementById('tarea-id-fila').value = t.id_fila;
@@ -870,6 +917,7 @@
     document.getElementById('tarea-responsable').value = t.responsable || "";
     document.getElementById('tarea-ramo').value = t.ramo || ""; 
     document.getElementById('tarea-numero-siniestro').value = t.numeroSiniestro || "";
+    document.getElementById('tarea-poliza').value = t.poliza || "";
     document.getElementById('tarea-vencimiento').type = 'date';
     document.getElementById('tarea-vencimiento').value = t.vencimiento;
     document.getElementById('tarea-desc').value = t.descripcion;
@@ -1532,6 +1580,8 @@
       .obtenerTodasLasPolizas();
   }
 
+  let filtroProductorPolizasInicializado = false;
+
   function poblarFiltrosPolizas(lista) {
     const selProductor = document.getElementById('filtro-productor-polizas');
     const selRamo = document.getElementById('filtro-ramo-polizas');
@@ -1545,7 +1595,12 @@
     productores.forEach(p => {
       const o = document.createElement('option'); o.value = p; o.text = p; selProductor.add(o);
     });
-    selProductor.value = productores.includes(productorActual) ? productorActual : "Todos";
+    if (!filtroProductorPolizasInicializado && productores.includes(usuarioLogueado)) {
+      selProductor.value = usuarioLogueado;
+      filtroProductorPolizasInicializado = true;
+    } else {
+      selProductor.value = productores.includes(productorActual) ? productorActual : "Todos";
+    }
 
     selRamo.innerHTML = '<option value="Todos">Ramo: Todos</option>';
     ramos.forEach(r => {
@@ -1659,6 +1714,8 @@
       .obtenerSiniestros();
   }
 
+  let filtroResponsableSiniestrosInicializado = false;
+
   function poblarFiltrosSiniestros(lista) {
     const selResponsable = document.getElementById('filtro-responsable-siniestros');
     const selRamo = document.getElementById('filtro-ramo-siniestros');
@@ -1672,7 +1729,12 @@
     responsables.forEach(r => {
       const o = document.createElement('option'); o.value = r; o.text = r; selResponsable.add(o);
     });
-    selResponsable.value = responsables.includes(responsableActual) ? responsableActual : "Todos";
+    if (!filtroResponsableSiniestrosInicializado && responsables.includes(usuarioLogueado)) {
+      selResponsable.value = usuarioLogueado;
+      filtroResponsableSiniestrosInicializado = true;
+    } else {
+      selResponsable.value = responsables.includes(responsableActual) ? responsableActual : "Todos";
+    }
 
     selRamo.innerHTML = '<option value="Todos">Ramo: Todos</option>';
     ramos.forEach(r => {
@@ -1829,6 +1891,8 @@
       .obtenerCobranzas();
   }
 
+  let filtroResponsableCobranzasInicializado = false;
+
   function poblarFiltrosCobranzas(lista) {
     const selResponsable = document.getElementById('filtro-responsable-cobranzas');
     const selRamo = document.getElementById('filtro-ramo-cobranzas');
@@ -1842,7 +1906,12 @@
     responsables.forEach(r => {
       const o = document.createElement('option'); o.value = r; o.text = r; selResponsable.add(o);
     });
-    selResponsable.value = responsables.includes(responsableActual) ? responsableActual : "Todos";
+    if (!filtroResponsableCobranzasInicializado && responsables.includes(usuarioLogueado)) {
+      selResponsable.value = usuarioLogueado;
+      filtroResponsableCobranzasInicializado = true;
+    } else {
+      selResponsable.value = responsables.includes(responsableActual) ? responsableActual : "Todos";
+    }
 
     selRamo.innerHTML = '<option value="Todos">Ramo: Todos</option>';
     ramos.forEach(r => {
@@ -2252,6 +2321,8 @@
 
 
 
+  let filtroResponsableVencimientosFPInicializado = false;
+
   function poblarFiltrosVencimientosFP(lista) {
     const selResponsable = document.getElementById('filtro-responsable-vencimientos-fp');
     const selRamo = document.getElementById('filtro-ramo-vencimientos-fp');
@@ -2265,7 +2336,12 @@
     responsables.forEach(r => {
       const o = document.createElement('option'); o.value = r; o.text = r; selResponsable.add(o);
     });
-    selResponsable.value = responsables.includes(responsableActual) ? responsableActual : "Todos";
+    if (!filtroResponsableVencimientosFPInicializado && responsables.includes(usuarioLogueado)) {
+      selResponsable.value = usuarioLogueado;
+      filtroResponsableVencimientosFPInicializado = true;
+    } else {
+      selResponsable.value = responsables.includes(responsableActual) ? responsableActual : "Todos";
+    }
 
     selRamo.innerHTML = '<option value="Todos">Ramo: Todos</option>';
     ramos.forEach(r => {

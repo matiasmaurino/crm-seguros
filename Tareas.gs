@@ -40,6 +40,7 @@ function obtenerTareas() {
       responsable: r[13],
       ramo: r[14] || "",
       numeroSiniestro: r[15] || "",
+      poliza: r[17] || "",
       usuario: r[12] || "-"
     };
   }).filter(t => t.compania !== "" && t.estado !== "Eliminada").reverse(); 
@@ -83,6 +84,10 @@ function guardarTarea(t, usuarioActivo) {
       t.numeroSiniestro || ""        // P
     ]]);
 
+    // Columna R (Póliza) se escribe aparte, sin tocar la Q (etiqueta de
+    // cliente con compañías, la maneja otro proceso) que queda en el medio.
+    hoja.getRange(filaActual, 18, 1, 1).setValue(t.poliza || "");
+
     // Si cambió el vencimiento, borramos el evento viejo y agendamos uno nuevo
     if (vencimientoCambio) {
       if (idEventoAnterior !== "") {
@@ -124,7 +129,9 @@ function guardarTarea(t, usuarioActivo) {
       usuarioActivo || "Sistema",
       t.responsable || "",
       t.ramo || "",
-      t.numeroSiniestro || ""
+      t.numeroSiniestro || "",       // P
+      "",                             // Q (etiqueta de cliente, la completa otro proceso aparte)
+      t.poliza || ""                  // R
     ];
 
     hoja.appendRow(filaValores);

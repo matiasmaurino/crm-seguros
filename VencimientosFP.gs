@@ -188,7 +188,11 @@ function procesarVencimientosFP() {
       const producto = (fila[2] || "").toString().trim();        // Producto
       const vigHastaRaw = (fila[5] || "").toString().trim();     // Vig. Hasta
       const matricula = (fila[6] || "").toString().trim();       // Matrícula
-      const modeloTexto = (fila[9] || "").toString().trim();     // Ramo/Modelo (en realidad es la descripción del vehículo/bien)
+      const modeloTexto = fila.slice(9, 15)
+  .map(val => (val || "").toString().trim())
+  .filter(val => val !== "")
+  .join(" ");
+      
       const productor = (fila[15] || "").toString().trim().toUpperCase(); // Productor
 
       if (!poliza) continue;
