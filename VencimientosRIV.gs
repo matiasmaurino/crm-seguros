@@ -142,13 +142,13 @@ function procesarVencimientosRIV() {
   const mapaRamoRIV = obtenerMapaRamoRIV();
   const mapaClientes = obtenerMapaClientesPorNombre(ss);
 
-  // Pólizas que ya tienen tarea de Renovacion de Rivadavia creada (columna P)
+  // Pólizas que ya tienen tarea de Renovacion de Rivadavia creada (columna R)
   const datosTareas = hojaTareas.getDataRange().getValues();
   const polizasYaCreadas = new Set();
   for (let i = 1; i < datosTareas.length; i++) {
     const tipoTarea = (datosTareas[i][3] || "").toString().trim().toLowerCase();
     const compania = (datosTareas[i][2] || "").toString().trim().toLowerCase();
-    const poliza = (datosTareas[i][15] || "").toString().trim();
+    const poliza = (datosTareas[i][17] || "").toString().trim();
     if (tipoTarea === "renovacion" && compania === "rivadavia" && poliza) polizasYaCreadas.add(poliza);
   }
 
@@ -222,7 +222,9 @@ function procesarVencimientosRIV() {
         "Sistema",                         // M: Usuario
         "Mauro",                           // N: Responsable (siempre)
         ramo,                              // O: Ramo
-        poliza                             // P: N° Póliza
+        "",                                 // P: N° Siniestro (no aplica acá)
+        "",                                 // Q (etiqueta de cliente, la completa otro proceso aparte)
+        poliza                             // R: N° Póliza
       ]);
 
       polizasYaCreadas.add(poliza); // por si la misma póliza aparece 2 veces en el mismo archivo
@@ -236,7 +238,7 @@ function procesarVencimientosRIV() {
 
   if (filasNuevas.length > 0) {
     const filaInicio = hojaTareas.getLastRow() + 1;
-    hojaTareas.getRange(filaInicio, 1, filasNuevas.length, 16).setValues(filasNuevas);
+    hojaTareas.getRange(filaInicio, 1, filasNuevas.length, 18).setValues(filasNuevas);
 
     filasNuevas.forEach((_, idx) => {
       try {

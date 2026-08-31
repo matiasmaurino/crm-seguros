@@ -2371,7 +2371,7 @@
       if (ramo !== "Todos" && v.ramo !== ramo) return false;
 
       if (texto !== "") {
-        const campoBusqueda = [v.numeroSiniestro, v.clienteNombre, v.ramo, v.descripcion].join(" ");
+        const campoBusqueda = [v.poliza, v.numeroSiniestro, v.clienteNombre, v.ramo, v.descripcion].join(" ");
         if (!coincideBusquedaCliente(campoBusqueda, texto)) return false;
       }
 
@@ -2410,7 +2410,7 @@
         </td>
         <td>${v.compania || ''}</td>
         <td style="font-weight:500; color:var(--zoho-nav);">${v.ramo || '-'}</td>
-        <td>${v.numeroSiniestro || ''}</td>
+        <td>${v.poliza || ''}</td>
         <td><span class="texto-descripcion" title="${v.descripcion || ''}">${v.descripcion || ''}</span></td>
       `;
       tbody.appendChild(tr);

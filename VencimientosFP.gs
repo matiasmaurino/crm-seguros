@@ -147,12 +147,12 @@ function procesarVencimientosFP() {
     if (matricula) clientePorMatricula[matricula] = datosClientes[i][0]; // id cliente
   }
 
-  // Pólizas que ya tienen tarea de Renovacion creada (columna P de TAREAS)
+  // Pólizas que ya tienen tarea de Renovacion creada (columna R de TAREAS)
   const datosTareas = hojaTareas.getDataRange().getValues();
   const polizasYaCreadas = new Set();
   for (let i = 1; i < datosTareas.length; i++) {
     const tipoTarea = (datosTareas[i][3] || "").toString().trim().toLowerCase();
-    const poliza = (datosTareas[i][15] || "").toString().trim(); // columna P
+    const poliza = (datosTareas[i][17] || "").toString().trim(); // columna R
     if (tipoTarea === "renovacion" && poliza) polizasYaCreadas.add(poliza);
   }
 
@@ -188,11 +188,7 @@ function procesarVencimientosFP() {
       const producto = (fila[2] || "").toString().trim();        // Producto
       const vigHastaRaw = (fila[5] || "").toString().trim();     // Vig. Hasta
       const matricula = (fila[6] || "").toString().trim();       // Matrícula
-      const modeloTexto = fila.slice(9, 15)
-  .map(val => (val || "").toString().trim())
-  .filter(val => val !== "")
-  .join(" ");
-      
+      const modeloTexto = (fila[9] || "").toString().trim();     // Ramo/Modelo (en realidad es la descripción del vehículo/bien)
       const productor = (fila[15] || "").toString().trim().toUpperCase(); // Productor
 
       if (!poliza) continue;
@@ -242,7 +238,9 @@ function procesarVencimientosFP() {
         "Sistema",                        // M: Usuario
         responsable,                      // N: Responsable
         ramo,                             // O: Ramo (mapeado vía AUX, no el modelo del vehículo)
-        poliza                            // P: N° Póliza (mismo campo que "Número Siniestro")
+        "",                                // P: N° Siniestro (no aplica acá)
+        "",                                // Q (etiqueta de cliente, la completa otro proceso aparte)
+        poliza                            // R: N° Póliza
       ]);
 
       polizasYaCreadas.add(poliza); // por si la misma póliza aparece 2 veces en el mismo CSV
@@ -266,7 +264,7 @@ function procesarVencimientosFP() {
 
   if (filasNuevas.length > 0) {
     const filaInicio = hojaTareas.getLastRow() + 1;
-    hojaTareas.getRange(filaInicio, 1, filasNuevas.length, 16).setValues(filasNuevas);
+    hojaTareas.getRange(filaInicio, 1, filasNuevas.length, 18).setValues(filasNuevas);
 
     filasNuevas.forEach((_, idx) => {
       try {
