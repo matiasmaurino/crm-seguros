@@ -529,31 +529,10 @@
             </div>
 
             <div class="importar-grid">
-
-              <!-- Vencimientos FP -->
+            <!-- Clientes FP -->
               <div class="importar-card">
-                <div class="importar-card-titulo">📅 Vencimientos FP</div>
-                <p class="importar-card-nota">CSV de vencimientos de Federación Patronal.</p>
-
-                <div class="dropzone" id="dropzone-vencimientos-fp" onclick="document.getElementById('vencimientos-fp-archivo').click()">
-                  <div class="dropzone-icon">📄</div>
-                  <div class="dropzone-texto">Arrastrá el archivo acá o hacé clic para elegirlo</div>
-                  <div class="dropzone-nombre-archivo" id="dropzone-nombre-vencimientos-fp"></div>
-                </div>
-                <input type="file" id="vencimientos-fp-archivo" accept=".csv" style="display:none;">
-
-                <button type="button" id="btn-procesar-vencimientos-fp" class="btn-principal" onclick="subirYProcesarVencimientosFP()">
-                  Subir y Procesar
-                </button>
-                <div id="mensaje-vencimientos-fp" style="color:var(--secondary); font-size:13px; margin-top:10px;"></div>
-
-                <button type="button" class="btn-ver-historial" onclick="mostrarHistorialCompartido('vencimientos-fp', this)">Ver historial</button>
-              </div>
-
-              <!-- Clientes FP -->
-              <div class="importar-card">
-                <div class="importar-card-titulo">👤 Clientes FP</div>
-                <p class="importar-card-nota">Padrón de Federación Patronal. Si un cliente ya existe (misma matrícula), se actualizan sus datos; si es nuevo, se agrega.</p>
+                <div class="importar-card-titulo">Clientes FP</div>
+                <p class="importar-card-nota">Listado de asegurados en CSV de Federación Patronal  <a href="https://online.fedpat.com.ar/self/asegurado/asegurados.jsf" target="_blank" rel="noopener noreferrer">Descargar</a>.</p>
 
                 <div class="dropzone" id="dropzone-clientes-fp" onclick="document.getElementById('clientes-fp-archivo').click()">
                   <div class="dropzone-icon">📄</div>
@@ -570,9 +549,53 @@
                 <button type="button" class="btn-ver-historial" onclick="mostrarHistorialCompartido('clientes-fp', this)">Ver historial</button>
               </div>
 
-              <!-- Vencimientos RIV -->
+              <!-- Vencimientos FP -->
               <div class="importar-card">
-                <div class="importar-card-titulo">📅 Vencimientos RIV</div>
+                <div class="importar-card-titulo">Vencimientos FP</div>
+                <p class="importar-card-nota">
+  Listado de vencimientos en CSV de Federación Patronal
+  <a href="https://online.fedpat.com.ar/self/jsf/produccion/cartera/vencimientos.jsf?renderMenu=n" target="_blank" rel="noopener noreferrer">
+   Descargar</a>. Revisar la fecha desde hasta anteriormente importados.
+</p>
+
+                <div class="dropzone" id="dropzone-vencimientos-fp" onclick="document.getElementById('vencimientos-fp-archivo').click()">
+                  <div class="dropzone-icon">📄</div>
+                  <div class="dropzone-texto">Arrastrá el archivo acá o hacé clic para elegirlo</div>
+                  <div class="dropzone-nombre-archivo" id="dropzone-nombre-vencimientos-fp"></div>
+                </div>
+                <input type="file" id="vencimientos-fp-archivo" accept=".csv" style="display:none;">
+
+                <button type="button" id="btn-procesar-vencimientos-fp" class="btn-principal" onclick="subirYProcesarVencimientosFP()">
+                  Subir y Procesar
+                </button>
+                <div id="mensaje-vencimientos-fp" style="color:var(--secondary); font-size:13px; margin-top:10px;"></div>
+
+                <button type="button" class="btn-ver-historial" onclick="mostrarHistorialCompartido('vencimientos-fp', this)">Ver historial</button>
+              </div>
+
+              <!-- Siniestros FP -->
+              <div class="importar-card">
+                <div class="importar-card-titulo">Siniestros FP</div>
+                <p class="importar-card-nota">Listar siniestros/denuncias en CSV de Federación Patronal  <a href="https://online.fedpat.com.ar/self/listarDenuncias.do" target="_blank" rel="noopener noreferrer">Descargar</a>. . Revisar la fecha desde hasta anteriormente importados.</p>
+
+                <div class="dropzone" id="dropzone-siniestros-fp" onclick="document.getElementById('siniestros-fp-archivo').click()">
+                  <div class="dropzone-icon">📄</div>
+                  <div class="dropzone-texto">Arrastrá el archivo acá o hacé clic para elegirlo</div>
+                  <div class="dropzone-nombre-archivo" id="dropzone-nombre-siniestros-fp"></div>
+                </div>
+                <input type="file" id="siniestros-fp-archivo" accept=".csv" style="display:none;">
+
+                <button type="button" id="btn-procesar-siniestros-fp" class="btn-principal" onclick="subirYProcesarSiniestrosFP()">
+                  Subir y Procesar
+                </button>
+                <div id="mensaje-siniestros-fp" style="color:var(--secondary); font-size:13px; margin-top:10px;"></div>
+
+                <button type="button" class="btn-ver-historial" onclick="mostrarHistorialCompartido('siniestros-fp', this)">Ver historial</button>
+              </div>
+
+             <!-- Vencimientos RIV -->
+              <div class="importar-card">
+                <div class="importar-card-titulo">Vencimientos RIV</div>
                 <p class="importar-card-nota">Reporte de Renovaciones de Rivadavia (.txt descomprimido, no el .Z). El cliente se vincula por nombre.</p>
 
                 <div class="dropzone" id="dropzone-vencimientos-riv" onclick="document.getElementById('vencimientos-riv-archivo').click()">
@@ -592,7 +615,7 @@
 
               <!-- Vencimientos PS -->
               <div class="importar-card">
-                <div class="importar-card-titulo">📅 Vencimientos PS</div>
+                <div class="importar-card-titulo">Vencimientos PS</div>
                 <p class="importar-card-nota">Excel de vencimientos de Provincia Seguros. El cliente se vincula por nombre.</p>
 
                 <div class="dropzone" id="dropzone-vencimientos-ps" onclick="document.getElementById('vencimientos-ps-archivo').click()">
@@ -609,31 +632,11 @@
 
                 <button type="button" class="btn-ver-historial" onclick="mostrarHistorialCompartido('vencimientos-ps', this)">Ver historial</button>
               </div>
-
-              <!-- Siniestros FP -->
-              <div class="importar-card">
-                <div class="importar-card-titulo">⚠️ Siniestros FP</div>
-                <p class="importar-card-nota">CSV de siniestros de Federación Patronal. El Vencimiento queda vacío, se carga a mano cuando haga falta. El cliente se vincula por nombre.</p>
-
-                <div class="dropzone" id="dropzone-siniestros-fp" onclick="document.getElementById('siniestros-fp-archivo').click()">
-                  <div class="dropzone-icon">📄</div>
-                  <div class="dropzone-texto">Arrastrá el archivo acá o hacé clic para elegirlo</div>
-                  <div class="dropzone-nombre-archivo" id="dropzone-nombre-siniestros-fp"></div>
-                </div>
-                <input type="file" id="siniestros-fp-archivo" accept=".csv" style="display:none;">
-
-                <button type="button" id="btn-procesar-siniestros-fp" class="btn-principal" onclick="subirYProcesarSiniestrosFP()">
-                  Subir y Procesar
-                </button>
-                <div id="mensaje-siniestros-fp" style="color:var(--secondary); font-size:13px; margin-top:10px;"></div>
-
-                <button type="button" class="btn-ver-historial" onclick="mostrarHistorialCompartido('siniestros-fp', this)">Ver historial</button>
-              </div>
-
+              
               <!-- Siniestros PS -->
               <div class="importar-card">
-                <div class="importar-card-titulo">⚠️ Siniestros PS</div>
-                <p class="importar-card-nota">Excel (.xls) de siniestros de Provincia Seguros. Responsable siempre Pilar. El Vencimiento queda vacío, se carga a mano cuando haga falta. El cliente se vincula por nombre.</p>
+                <div class="importar-card-titulo">Siniestros PS</div>
+                <p class="importar-card-nota">Excel (.xls) de siniestros de Provincia Seguros.Se importa automaticamente a medida que llega el archivo por email.</p>
 
                 <div class="dropzone" id="dropzone-siniestros-ps" onclick="document.getElementById('siniestros-ps-archivo').click()">
                   <div class="dropzone-icon">📄</div>
