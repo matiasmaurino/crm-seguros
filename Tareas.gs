@@ -181,16 +181,24 @@ function actualizarVencimientoTarea(idFila, nuevaFechaISO, nuevaDescripcion) {
   }
 
   const idEventoAnterior = (hoja.getRange(filaNumero, 9).getValue() || "").toString().trim(); // Columna I
+  const responsableActual = (hoja.getRange(filaNumero, 14).getValue() || "").toString().trim(); // Columna N
   const nuevoVencimiento = nuevaFechaISO ? new Date(nuevaFechaISO + "T12:00:00") : "";
 
   hoja.getRange(filaNumero, 6).setValue(nuevoVencimiento); // Columna F: Vencimiento
   if (nuevaDescripcion !== undefined && nuevaDescripcion !== null) {
     hoja.getRange(filaNumero, 5).setValue(nuevaDescripcion); // Columna E: Descripción
   }
+  // Forzamos que la escritura se confirme antes de seguir — si no,
+  // agendarTareaEnCalendar (unas líneas más abajo) puede releer la fecha
+  // vieja de la hoja, porque todavía no se terminó de guardar.
+  SpreadsheetApp.flush();
 
   if (idEventoAnterior) {
     try {
-      const cal = CalendarApp.getCalendarById(CALENDARIO_POR_DEFECTO);
+      // El evento viejo puede estar en el calendario propio del responsable
+      // (no siempre en el "por defecto") — buscamos en el que corresponda.
+      const idCalendarioAnterior = CALENDARIOS_POR_RESPONSABLE[responsableActual] || CALENDARIO_POR_DEFECTO;
+      const cal = CalendarApp.getCalendarById(idCalendarioAnterior);
       const eventoViejo = cal ? cal.getEventById(idEventoAnterior) : null;
       if (eventoViejo) eventoViejo.deleteEvent();
     } catch (e) {
